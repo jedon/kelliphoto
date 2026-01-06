@@ -9,6 +9,8 @@ using KelliPhoto.Web.Data;
 using KelliPhoto.Web.Services;
 using Serilog;
 
+var builder = WebApplication.CreateBuilder(args);
+
 // Configure Serilog
 Log.Logger = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
@@ -22,8 +24,6 @@ Log.Logger = new LoggerConfiguration()
     .CreateLogger();
 
 builder.Host.UseSerilog();
-
-var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddRazorPages();
