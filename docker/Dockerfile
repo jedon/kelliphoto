@@ -21,8 +21,11 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-# Install ImageSharp native dependencies if needed
-RUN apt-get update && apt-get install -y libgdiplus && rm -rf /var/lib/apt/lists/*
+# ImageSharp doesn't require libgdiplus on .NET Core/5+ (it's a pure .NET library)
+# If you need System.Drawing support, uncomment the following:
+# RUN apt-get update && \
+#     apt-get install -y --no-install-recommends libgdiplus libc6-dev && \
+#     rm -rf /var/lib/apt/lists/*
 
 COPY --from=publish /app/publish .
 
