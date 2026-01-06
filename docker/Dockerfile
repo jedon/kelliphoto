@@ -21,11 +21,9 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-# ImageSharp doesn't require libgdiplus on .NET Core/5+ (it's a pure .NET library)
-# If you need System.Drawing support, uncomment the following:
-# RUN apt-get update && \
-#     apt-get install -y --no-install-recommends libgdiplus libc6-dev && \
-#     rm -rf /var/lib/apt/lists/*
+# Install .NET EF Core tools for running migrations
+RUN dotnet tool install --global dotnet-ef --version 10.0.0
+ENV PATH="$PATH:/root/.dotnet/tools"
 
 COPY --from=publish /app/publish .
 
