@@ -38,8 +38,8 @@ services:
     volumes:
       - /mnt/gallery:/mnt/gallery:ro
     ports:
-      - "8080:80"
-      - "8443:443"
+      - "8888:80"   # HTTP - using 8888 to avoid conflicts
+      - "8444:443"  # HTTPS - using 8444 to avoid conflicts
     restart: unless-stopped
     networks:
       - kelliphoto-network
