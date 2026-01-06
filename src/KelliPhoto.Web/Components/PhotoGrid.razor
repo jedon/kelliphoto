@@ -1,0 +1,107 @@
+@using KelliPhoto.Web.Data.Models
+@inject IPhotoService PhotoService
+@inject NavigationManager Navigation
+
+<div class="photo-grid">
+    @if (Photos.Any())
+    {
+        <div class="row">
+            @foreach (var photo in Photos)
+            {
+                <div class="col-md-3 col-sm-4 col-6 mb-3">
+                    <div class="card photo-card" @onclick="() => ViewPhoto(photo.Id)" style="cursor: pointer;">
+                        <img src="/api/images/thumbnail/@photo.Id?size=300" 
+                             alt="@photo.Filename" 
+                             class="card-img-top"
+                             loading="lazy"
+                             onerror="this.src='/placeholder.jpg';" />
+                        <div class="card-body p-2">
+                            <p class="card-text small text-truncate mb-0">@photo.Filename</p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        @if (HasMore)
+        {
+            <div class="text-center mt-4">
+                <button class="btn btn-primary" @onclick="LoadMore" disabled="@isLoading">
+                    @if (isLoading)
+                    {
+                        <span class="spinner-border spinner-border-sm me-2"></span>
+                    }
+                    Load More
+                </button>
+            </div>
+        }
+    }
+    else if (!isLoading)
+    {
+        <p class="text-center text-muted">No photos in this folder.</p>
+    }
+    else
+    {
+        <div class="text-center">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int FolderId { get; set; }
+
+    private List<Photo> Photos { get; set; } = new();
+    private int currentPage = 0;
+    private const int PageSize = 50;
+    private bool HasMore { get; set; } = true;
+    private bool isLoading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPhotosAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Photos = new();
+        currentPage = 0;
+        HasMore = true;
+        await LoadPhotosAsync();
+    }
+
+    private async Task LoadPhotosAsync()
+    {
+        if (isLoading) return;
+
+        isLoading = true;
+        try
+        {
+            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize);
+            
+            if (photos.Count < PageSize)
+            {
+                HasMore = false;
+            }
+
+            Photos.AddRange(photos);
+            currentPage++;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task LoadMore()
+    {
+        await LoadPhotosAsync();
+    }
+
+    private void ViewPhoto(int photoId)
+    {
+        Navigation.NavigateTo($"/photo/{photoId}");
+    }
+}

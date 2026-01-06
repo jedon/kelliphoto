@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    container_name: kelliphoto-postgres
+    environment:
+      POSTGRES_DB: kelli_photo
+      POSTGRES_USER: kelli_photo_app
+      POSTGRES_PASSWORD: !kelliphoto13!
+    volumes:
+      - kelliphoto_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "15432:5432"  # Map to 15432 on host to avoid conflicts
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kelli_photo_app"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - kelliphoto-network
+
+  web:
+    image: YOUR_DOCKERHUB_USERNAME/kelliphoto-web:latest
+    # Alternative: build locally instead of using Docker Hub
+    # build:
+    #   context: ..
+    #   dockerfile: docker/Dockerfile
+    container_name: kelliphoto-web
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!
+      - GallerySettings__GalleryPath=/mnt/gallery
+      - GallerySettings__ThumbnailPath=/mnt/gallery/.thumbnails
+    volumes:
+      - /mnt/gallery:/mnt/gallery:ro
+    ports:
+      - "8080:80"
+      - "8443:443"
+    restart: unless-stopped
+    networks:
+      - kelliphoto-network
+
+networks:
+  kelliphoto-network:
+    driver: bridge
+
+volumes:
+  kelliphoto_postgres_data:

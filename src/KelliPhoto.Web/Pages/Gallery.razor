@@ -1,0 +1,18 @@
+@page "/gallery"
+@page "/gallery/{FolderId:int}"
+
+<PageTitle>Gallery - Kelli Photo</PageTitle>
+
+<div class="container-fluid mt-4">
+    <FolderBrowser FolderId="FolderId" />
+    
+    @if (FolderId.HasValue)
+    {
+        <hr />
+        <PhotoGrid FolderId="FolderId.Value" />
+    }
+</div>
+
+@code {
+    [Parameter] public int? FolderId { get; set; }
+}

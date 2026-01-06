@@ -1,0 +1,134 @@
+@using KelliPhoto.Web.Data.Models
+@inject IFolderService FolderService
+@inject NavigationManager Navigation
+
+<div class="folder-browser">
+    @if (CurrentFolder != null)
+    {
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item">
+                    <a href="/gallery" @onclick="NavigateToRoot">Home</a>
+                </li>
+                @foreach (var folder in Breadcrumbs)
+                {
+                    <li class="breadcrumb-item">
+                        <a href="#" @onclick="() => NavigateToFolder(folder.Id)">@folder.Name</a>
+                    </li>
+                }
+                <li class="breadcrumb-item active" aria-current="page">@CurrentFolder.Name</li>
+            </ol>
+        </nav>
+
+        <div class="folder-list">
+            @if (ChildFolders.Any())
+            {
+                <h5>Folders</h5>
+                <div class="row">
+                    @foreach (var folder in ChildFolders)
+                    {
+                        <div class="col-md-3 col-sm-4 col-6 mb-3">
+                            <div class="card folder-card" @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
+                                <div class="card-body text-center">
+                                    <i class="bi bi-folder" style="font-size: 3rem;"></i>
+                                    <p class="card-text mt-2">@folder.Name</p>
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else if (RootFolders.Any())
+    {
+        <h4>Gallery Folders</h4>
+        <div class="row">
+            @foreach (var folder in RootFolders)
+            {
+                <div class="col-md-3 col-sm-4 col-6 mb-3">
+                    <div class="card folder-card" @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
+                        <div class="card-body text-center">
+                            <i class="bi bi-folder" style="font-size: 3rem;"></i>
+                            <p class="card-text mt-2">@folder.Name</p>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <p>No folders found. The gallery is being scanned...</p>
+    }
+</div>
+
+@code {
+    [Parameter] public int? FolderId { get; set; }
+
+    private List<Folder> RootFolders { get; set; } = new();
+    private List<Folder> ChildFolders { get; set; } = new();
+    private Folder? CurrentFolder { get; set; }
+    private List<Folder> Breadcrumbs { get; set; } = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFoldersAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        await LoadFoldersAsync();
+    }
+
+    private async Task LoadFoldersAsync()
+    {
+        if (FolderId.HasValue)
+        {
+            CurrentFolder = await FolderService.GetFolderByIdAsync(FolderId.Value);
+            if (CurrentFolder != null)
+            {
+                ChildFolders = await FolderService.GetChildFoldersAsync(FolderId.Value);
+                Breadcrumbs = await BuildBreadcrumbsAsync(CurrentFolder);
+            }
+        }
+        else
+        {
+            RootFolders = await FolderService.GetRootFoldersAsync();
+            CurrentFolder = null;
+            ChildFolders = new();
+            Breadcrumbs = new();
+        }
+    }
+
+    private async Task<List<Folder>> BuildBreadcrumbsAsync(Folder folder)
+    {
+        var breadcrumbs = new List<Folder>();
+        var current = folder.Parent;
+
+        while (current != null)
+        {
+            breadcrumbs.Insert(0, current);
+            if (current.ParentId.HasValue)
+            {
+                current = await FolderService.GetFolderByIdAsync(current.ParentId.Value);
+            }
+            else
+            {
+                current = null;
+            }
+        }
+
+        return breadcrumbs;
+    }
+
+    private void NavigateToFolder(int folderId)
+    {
+        Navigation.NavigateTo($"/gallery/{folderId}");
+    }
+
+    private void NavigateToRoot()
+    {
+        Navigation.NavigateTo("/gallery");
+    }
+}
