@@ -60,12 +60,12 @@ Once the stack is running:
    - Look for: "Now listening on: http://[::]:80"
 
 3. **Access the application:**
-   - Open browser: `http://your-server:8080`
+   - Open browser: `http://your-server:8888`
    - You should see the gallery interface
 
 ### 8. Create Admin User (First Time)
 
-1. Navigate to: `http://your-server:8080/Identity/Account/Register`
+1. Navigate to: `http://your-server:8888/Identity/Account/Register`
 2. Create your admin account
 3. Or use the console to create via command line (if you add that feature)
 
@@ -74,7 +74,7 @@ Once the stack is running:
 ### Container won't start
 - Check **Logs** tab for errors
 - Verify the image exists: `jedon/kelliphoto-web:latest` on Docker Hub
-- Check port conflicts (8080, 15432)
+- Check port conflicts (8888, 15432)
 
 ### Database connection fails
 - Verify `kelliphoto-postgres` container is running
@@ -89,7 +89,7 @@ Once the stack is running:
 ### Can't access from outside
 - Check firewall rules
 - Verify iptables port forwarding (if using Proxmox)
-- Ensure ports 8080/8443 are accessible
+- Ensure ports 8888/8444 are accessible
 
 ## Updating the Application
 
