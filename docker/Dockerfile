@@ -27,7 +27,8 @@ ENV PATH="$PATH:/root/.dotnet/tools"
 
 COPY --from=publish /app/publish .
 
-# Create thumbnail directory
-RUN mkdir -p /mnt/gallery/.thumbnails
+# Create thumbnail and logs directories
+RUN mkdir -p /mnt/gallery/.thumbnails && \
+    mkdir -p /app/logs
 
 ENTRYPOINT ["dotnet", "KelliPhoto.Web.dll"]

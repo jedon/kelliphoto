@@ -7,6 +7,21 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using KelliPhoto.Web.Data;
 using KelliPhoto.Web.Services;
+using Serilog;
+
+// Configure Serilog
+Log.Logger = new LoggerConfiguration()
+    .ReadFrom.Configuration(builder.Configuration)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File(
+        path: "/app/logs/kelliphoto-.log",
+        rollingInterval: RollingInterval.Day,
+        retainedFileCountLimit: 30,
+        outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}")
+    .CreateLogger();
+
+builder.Host.UseSerilog();
 
 var builder = WebApplication.CreateBuilder(args);
 
