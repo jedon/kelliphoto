@@ -57,8 +57,8 @@ if [ $? -eq 0 ]; then
     echo "✓ PostgreSQL configured for external access!"
     echo ""
     echo "Next steps:"
-    echo "1. Make sure iptables rule is set on Proxmox host (port 5434 -> 192.168.10.150:15432)"
-    echo "2. Test connection: psql -h postgres.darklingdesign.com -p 5434 -U kelli_photo_app -d kelli_photo"
+    echo "1. Make sure iptables rule is set on Proxmox host (port 5444 -> 192.168.10.150:15432)"
+    echo "2. Test connection: psql -h postgres.darklingdesign.com -p 5444 -U kelli_photo_app -d kelli_photo"
 else
     echo ""
     echo "⚠ Warning: Could not verify the rule was added. Please check manually:"

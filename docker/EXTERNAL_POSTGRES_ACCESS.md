@@ -11,19 +11,19 @@
 
 ### Step 1: Add iptables rule on Proxmox host
 
-Forward external port to Debian VM. Using port `5434` externally to avoid conflicts with existing PostgreSQL on port `5432`.
+Forward external port to Debian VM. Using port `5444` externally to avoid conflicts with existing PostgreSQL on port `5432`.
 
 ```bash
 # On Proxmox host (where iptables rules are configured)
-# Forward external port 5434 to Debian VM port 15432
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5434 -j DNAT --to-destination 192.168.10.150:15432
+# Forward external port 5444 to Debian VM port 15432
+sudo iptables -t nat -A PREROUTING -p tcp --dport 5444 -j DNAT --to-destination 192.168.10.150:15432
 
 # Make it persistent
 sudo apt-get install -y iptables-persistent
 sudo netfilter-persistent save
 ```
 
-**Note**: If you prefer a different external port, replace `5434` with your chosen port.
+**Note**: If you prefer a different external port, replace `5444` with your chosen port.
 
 ### Step 2: Configure PostgreSQL to allow external connections
 
@@ -53,7 +53,7 @@ docker restart kelliphoto-postgres
 
 ```bash
 # From your Windows dev machine (using external domain/port)
-psql -h postgres.darklingdesign.com -p 5434 -U kelli_photo_app -d kelli_photo
+psql -h postgres.darklingdesign.com -p 5444 -U kelli_photo_app -d kelli_photo
 # Password: !kelliphoto13!
 ```
 
@@ -61,7 +61,7 @@ Update your connection string in `appsettings.Development.json`:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=postgres.darklingdesign.com;Port=5434;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
+    "DefaultConnection": "Host=postgres.darklingdesign.com;Port=5444;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
   }
 }
 ```
@@ -72,12 +72,12 @@ Update your connection string in `appsettings.Development.json`:
 
 ```bash
 # On Proxmox host
-sudo iptables -t nat -L PREROUTING -v --line-numbers | grep 5434
+sudo iptables -t nat -L PREROUTING -v --line-numbers | grep 5444
 ```
 
 Should show:
 ```
-DNAT tcp -- any any anywhere anywhere tcp dpt:5434 to:192.168.10.150:15432
+DNAT tcp -- any any anywhere anywhere tcp dpt:5444 to:192.168.10.150:15432
 ```
 
 ### 2. Check PostgreSQL is listening on Debian VM
@@ -92,9 +92,9 @@ sudo netstat -tlnp | grep 15432
 
 ```bash
 # Windows PowerShell or CMD
-telnet postgres.darklingdesign.com 5434
+telnet postgres.darklingdesign.com 5444
 # Or use psql if you have it installed
-psql -h postgres.darklingdesign.com -p 5434 -U kelli_photo_app -d kelli_photo
+psql -h postgres.darklingdesign.com -p 5444 -U kelli_photo_app -d kelli_photo
 ```
 
 ## Running Migrations from Dev Machine
@@ -106,7 +106,7 @@ Once connected, you can run migrations directly:
 cd src/KelliPhoto.Web
 
 # Set connection string (or use appsettings.Development.json)
-$env:ConnectionStrings__DefaultConnection="Host=postgres.darklingdesign.com;Port=5434;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
+$env:ConnectionStrings__DefaultConnection="Host=postgres.darklingdesign.com;Port=5444;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
 
 # Run migrations
 dotnet ef database update
@@ -115,7 +115,7 @@ dotnet ef database update
 ## Troubleshooting
 
 ### Connection refused
-- Check iptables rule on Proxmox host: `sudo iptables -t nat -L PREROUTING | grep 5434`
+- Check iptables rule on Proxmox host: `sudo iptables -t nat -L PREROUTING | grep 5444`
 - Check PostgreSQL is listening on Debian VM: `sudo netstat -tlnp | grep 15432` (should show `0.0.0.0:15432`)
 - Check firewall on Debian VM: `sudo ufw status` (may need to allow port 15432)
 - Check if you can reach the server: `ping postgres.darklingdesign.com` or `ping 142.4.216.160`

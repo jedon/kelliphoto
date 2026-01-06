@@ -13,7 +13,7 @@ if [ "$EUID" -ne 0 ]; then
 fi
 
 # External port (change if needed)
-EXTERNAL_PORT=5434
+EXTERNAL_PORT=5444
 DEBIAN_VM_IP=192.168.10.150
 DEBIAN_VM_PORT=15432
 
