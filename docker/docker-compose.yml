@@ -21,7 +21,7 @@ services:
       - kelliphoto-network
 
   web:
-    image: YOUR_DOCKERHUB_USERNAME/kelliphoto-web:latest
+    image: jedon/kelliphoto-web:latest
     # Alternative: build locally instead of using Docker Hub
     # build:
     #   context: ..
