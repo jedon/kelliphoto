@@ -6,10 +6,14 @@
 
 echo "Setting up iptables rules for Kelli Photo Gallery..."
 
-echo "ℹ PostgreSQL port forwarding SKIPPED"
-echo "   - Kelli Photo PostgreSQL runs on internal port 15432 only"
+echo "ℹ PostgreSQL port forwarding"
+echo "   - Kelli Photo PostgreSQL runs on internal port 15432"
 echo "   - Web container connects via Docker network (no external access needed)"
 echo "   - To access from host: psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo"
+echo ""
+echo "To enable external access from dev machine (optional):"
+echo "   sudo iptables -t nat -A PREROUTING -p tcp --dport 5433 -j DNAT --to-destination 192.168.10.150:15432"
+echo "   sudo netfilter-persistent save"
 echo ""
 
 # Web application port forwarding: External 80 -> Internal 8080 (optional, if you want HTTP on port 80)
