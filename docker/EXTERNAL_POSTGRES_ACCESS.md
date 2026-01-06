@@ -9,22 +9,11 @@
 
 ## Steps to Enable External Access
 
-### Option 1: Use a Different External Port (Recommended)
+### Option 1: Use Port 15432 Directly (Recommended - No iptables needed)
 
-Use port `5433` externally to avoid conflicts with your existing PostgreSQL on port `5432`.
+Use port `15432` directly - no iptables forwarding required since it's already exposed on the host.
 
-#### 1. Add iptables rule on Proxmox host
-
-```bash
-# Forward external port 5433 to internal 15432
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5433 -j DNAT --to-destination 192.168.10.150:15432
-
-# Make it persistent
-sudo apt-get install -y iptables-persistent
-sudo netfilter-persistent save
-```
-
-#### 2. Configure PostgreSQL to allow external connections
+#### 1. Configure PostgreSQL to allow external connections
 
 The PostgreSQL container needs to allow connections from outside. By default, Docker containers should allow this, but we need to ensure `pg_hba.conf` is configured.
 
@@ -47,49 +36,46 @@ exit
 docker restart kelliphoto-postgres
 ```
 
-#### 3. Test connection from your dev machine
+#### 2. Test connection from your dev machine
 
 ```bash
-# From your Windows dev machine
-psql -h postgres.darklingdesign.com -p 5433 -U kelli_photo_app -d kelli_photo
+# From your Windows dev machine (using internal IP)
+psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo
 # Password: !kelliphoto13!
 ```
 
-Or update your connection string in `appsettings.Development.json`:
+Or if you have a domain/DNS pointing to the server:
+```bash
+psql -h your-server-domain.com -p 15432 -U kelli_photo_app -d kelli_photo
+```
+
+Update your connection string in `appsettings.Development.json`:
 ```json
 {
   "ConnectionStrings": {
-    "DefaultConnection": "Host=postgres.darklingdesign.com;Port=5433;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
+    "DefaultConnection": "Host=192.168.10.150;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
   }
 }
 ```
 
-### Option 2: Use Port 15432 Directly (If Firewall Allows)
+### Option 2: Use iptables Forwarding (If Direct Access Not Available)
 
-If your firewall/router allows direct access to port 15432:
+If you need to use a different external port (e.g., 5434) with iptables forwarding:
 
-1. **No iptables rule needed** (direct access)
-2. **Configure pg_hba.conf** (same as Option 1, step 2)
+1. **Add iptables rule on Proxmox host:**
+   ```bash
+   sudo iptables -t nat -A PREROUTING -p tcp --dport 5434 -j DNAT --to-destination 192.168.10.150:15432
+   sudo netfilter-persistent save
+   ```
+2. **Configure pg_hba.conf** (same as Option 1, step 1)
 3. **Test connection:**
    ```bash
-   psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo
+   psql -h postgres.darklingdesign.com -p 5434 -U kelli_photo_app -d kelli_photo
    ```
 
 ## Verify Setup
 
-### 1. Check iptables rule (if using Option 1)
-
-```bash
-# On Proxmox host
-sudo iptables -t nat -L PREROUTING -v --line-numbers | grep 5433
-```
-
-Should show:
-```
-DNAT tcp -- any any anywhere anywhere tcp dpt:5433 to:192.168.10.150:15432
-```
-
-### 2. Check PostgreSQL is listening
+### 1. Check PostgreSQL is listening
 
 ```bash
 # On Debian host
@@ -114,7 +100,7 @@ Once connected, you can run migrations directly:
 cd src/KelliPhoto.Web
 
 # Set connection string (or use appsettings.Development.json)
-$env:ConnectionStrings__DefaultConnection="Host=postgres.darklingdesign.com;Port=5433;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
+$env:ConnectionStrings__DefaultConnection="Host=192.168.10.150;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer"
 
 # Run migrations
 dotnet ef database update
@@ -123,9 +109,10 @@ dotnet ef database update
 ## Troubleshooting
 
 ### Connection refused
-- Check iptables rule is active: `sudo iptables -t nat -L PREROUTING | grep 5433`
-- Check PostgreSQL is listening: `sudo netstat -tlnp | grep 15432`
-- Check firewall on Debian host: `sudo ufw status`
+- Check PostgreSQL is listening: `sudo netstat -tlnp | grep 15432` (should show `0.0.0.0:15432`)
+- Check firewall on Debian host: `sudo ufw status` (may need to allow port 15432)
+- Check if you can reach the server: `ping 192.168.10.150`
+- If using iptables forwarding, check rule: `sudo iptables -t nat -L PREROUTING | grep 15432`
 
 ### Authentication failed
 - Verify `pg_hba.conf` has the correct entry
