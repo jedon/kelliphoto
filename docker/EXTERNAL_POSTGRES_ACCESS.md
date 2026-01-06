@@ -87,8 +87,9 @@ sudo netstat -tlnp | grep 15432
 
 ```bash
 # Windows PowerShell or CMD
-telnet postgres.darklingdesign.com 5433
+telnet 192.168.10.150 15432
 # Or use psql if you have it installed
+psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo
 ```
 
 ## Running Migrations from Dev Machine
