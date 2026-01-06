@@ -1,20 +1,16 @@
 #!/bin/bash
 # iptables setup for Kelli Photo Gallery
 # Run this on your Proxmox/Debian host
+# NOTE: PostgreSQL is NOT exposed externally to avoid conflicts with existing PostgreSQL on port 5432
+# PostgreSQL is only accessible internally on port 15432
 
 echo "Setting up iptables rules for Kelli Photo Gallery..."
 
-# PostgreSQL port forwarding: External 5432 -> Internal 15432
-# Check if rule already exists
-EXISTING_RULE=$(sudo iptables -t nat -L PREROUTING -n --line-numbers | grep -E "5432.*192.168.10.150.*15432" | head -1 | awk '{print $1}')
-
-if [ -z "$EXISTING_RULE" ]; then
-    echo "Adding iptables rule for PostgreSQL (5432 -> 192.168.10.150:15432)..."
-    sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
-    echo "✓ Rule added"
-else
-    echo "✓ Rule already exists at line $EXISTING_RULE"
-fi
+echo "ℹ PostgreSQL port forwarding SKIPPED"
+echo "   - Kelli Photo PostgreSQL runs on internal port 15432 only"
+echo "   - Web container connects via Docker network (no external access needed)"
+echo "   - To access from host: psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo"
+echo ""
 
 # Web application port forwarding: External 80 -> Internal 8080 (optional, if you want HTTP on port 80)
 # Uncomment if you want to expose the web app on port 80 instead of 8080
@@ -38,8 +34,8 @@ else
 fi
 
 echo ""
-echo "Current PREROUTING rules for ports 5432, 80, 443:"
-sudo iptables -t nat -L PREROUTING -v --line-numbers | grep -E "5432|dpt:http|dpt:https"
+echo "Current PREROUTING rules for ports 80, 443:"
+sudo iptables -t nat -L PREROUTING -v --line-numbers | grep -E "dpt:http|dpt:https"
 
 echo ""
 echo "✓ iptables setup complete!"

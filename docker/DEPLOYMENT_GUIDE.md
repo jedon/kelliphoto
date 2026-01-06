@@ -9,7 +9,10 @@
 
 ## Step 1: iptables Port Forwarding
 
-### Option A: Run the setup script
+**Note**: PostgreSQL is NOT exposed externally to avoid conflicts with existing PostgreSQL on port 5432.
+The Kelli Photo PostgreSQL is only accessible internally on port 15432. The web container connects via Docker network.
+
+### Option A: Run the setup script (no PostgreSQL forwarding)
 
 ```bash
 cd docker
@@ -17,10 +20,14 @@ chmod +x iptables-setup.sh
 sudo ./iptables-setup.sh
 ```
 
-### Option B: Manual setup
+This script will skip PostgreSQL port forwarding to avoid conflicts.
+
+### Option B: Manual setup (if you need external PostgreSQL access)
+
+**⚠️ Only do this if you're sure port 5432 is available and won't conflict:**
 
 ```bash
-# PostgreSQL port forwarding
+# PostgreSQL port forwarding (ONLY if port 5432 is free)
 sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
 
 # Make persistent
@@ -28,11 +35,11 @@ sudo apt-get install -y iptables-persistent
 sudo netfilter-persistent save
 ```
 
-### Verify rules
+### PostgreSQL Access
 
-```bash
-sudo iptables -t nat -L PREROUTING -v --line-numbers | grep -E "5432|8080|8443"
-```
+- **From web container**: Uses Docker network (`postgres:5432`) - automatic
+- **From host**: `psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo`
+- **External access**: Not configured (to avoid conflicts)
 
 ## Step 2: Deploy in Portainer
 
