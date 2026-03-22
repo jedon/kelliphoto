@@ -2,6 +2,8 @@
 
 A modern photo gallery website built with ASP.NET Core Blazor Server, PostgreSQL, and Docker. Designed to display and manage large photo collections (50K+ photos) with nested folder structures.
 
+Developer-focused documentation (local setup, architecture) lives in the [docs/](docs/) folder.
+
 ## Features
 
 - 📁 **Nested Folder Navigation**: Recursive folder structure display with breadcrumbs
