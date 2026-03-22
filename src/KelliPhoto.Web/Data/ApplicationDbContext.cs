@@ -28,6 +28,12 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
             .OnDelete(DeleteBehavior.Restrict);
 
         builder.Entity<Folder>()
+            .HasOne(f => f.ThumbnailPhoto)
+            .WithMany()
+            .HasForeignKey(f => f.ThumbnailPhotoId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        builder.Entity<Folder>()
             .HasIndex(f => f.Path)
             .IsUnique();
 

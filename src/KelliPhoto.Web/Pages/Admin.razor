@@ -1,0 +1,399 @@
+@page "/admin"
+@using Microsoft.AspNetCore.Authorization
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.Components.Forms
+@using KelliPhoto.Web.Data.Models
+@using KelliPhoto.Web.Services
+@attribute [Authorize(Roles = "Admin")]
+@inject UserManager<IdentityUser> UserManager
+@inject RoleManager<IdentityRole> RoleManager
+@inject IFolderService FolderService
+@inject IPhotoService PhotoService
+@inject IPathService PathService
+@inject IConfiguration Configuration
+@inject ILogger<Admin> Logger
+@inject IHttpClientFactory HttpClientFactory
+
+<PageTitle>Admin - KelliPhoto</PageTitle>
+
+<div class="container mt-4">
+    <h1>Admin Management</h1>
+    
+    <div class="row mt-4">
+        <div class="col-12">
+            <ul class="nav nav-tabs" role="tablist">
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "folders" ? "active" : "")" @onclick="@(() => SetActiveTab("folders"))">Folders</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "photos" ? "active" : "")" @onclick="@(() => SetActiveTab("photos"))">Photos</button>
+                </li>
+                <li class="nav-item">
+                    <button class="nav-link @(activeTab == "scanning" ? "active" : "")" @onclick="@(() => SetActiveTab("scanning"))">Scanning</button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="tab-content mt-3">
+        @if (activeTab == "folders")
+        {
+            <div class="tab-pane active">
+                <h3>Manage Folders</h3>
+                <div class="mb-3">
+                    <label class="form-label">Select Folder:</label>
+                    <select class="form-select" @bind="selectedFolderId" @bind:after="OnSelectedFolderChanged">
+                        <option value="0">-- Select a folder --</option>
+                        @foreach (var folder in allFolders)
+                        {
+                            <option value="@folder.Id">@folder.Path</option>
+                        }
+                    </select>
+                </div>
+                
+                @if (selectedFolder != null)
+                {
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>Edit Folder: @selectedFolder.Name</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Visibility:</label>
+                                <div class="form-check form-switch">
+                                    <input class="form-check-input" type="checkbox" @bind="selectedFolder.IsVisible" @bind:event="onchange" />
+                                    <label class="form-check-label">Visible in gallery</label>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Description:</label>
+                                <textarea class="form-control" rows="3" @bind="selectedFolder.Description" @bind:event="onchange"></textarea>
+                            </div>
+                            
+                            <button class="btn btn-primary" @onclick="SaveFolder" disabled="@isSaving">@(isSaving ? "Saving..." : "Save Changes")</button>
+                            @if (!string.IsNullOrEmpty(saveMessage))
+                            {
+                                <div class="alert @(saveMessage.Contains("Error") ? "alert-danger" : "alert-success") mt-2">@saveMessage</div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        
+        @if (activeTab == "photos")
+        {
+            <div class="tab-pane active">
+                <h3>Manage Photos</h3>
+                
+                <div class="mb-3">
+                    <label class="form-label">Select Folder:</label>
+                    <select class="form-select" @bind="selectedPhotoFolderId" @bind:after="OnSelectedPhotoFolderChanged">
+                        <option value="0">-- Select a folder --</option>
+                        @foreach (var folder in allFolders)
+                        {
+                            <option value="@folder.Id">@folder.Path</option>
+                        }
+                    </select>
+                </div>
+                
+                @if (selectedPhotoFolderId > 0)
+                {
+                    <div class="mb-3">
+                        <h5>Upload Photos</h5>
+                        <InputFile class="form-control" multiple OnChange="HandleFileSelection" accept="image/*" />
+                        <button class="btn btn-primary mt-2" @onclick="UploadPhotos" disabled="@isUploading">@(isUploading ? "Uploading..." : "Upload Photos")</button>
+                        @if (!string.IsNullOrEmpty(uploadMessage))
+                        {
+                            <div class="alert @(uploadMessage.Contains("Error") ? "alert-danger" : "alert-success") mt-2">@uploadMessage</div>
+                        }
+                    </div>
+                    
+                    <div class="mb-3">
+                        <h5>Photos in Folder</h5>
+                        <div class="row">
+                            @foreach (var photo in folderPhotos)
+                            {
+                                <div class="col-md-3 mb-3">
+                                    <div class="card">
+                                        <img src="/api/images/thumbnail/@photo.Id?size=200" class="card-img-top" alt="@photo.Filename" />
+                                        <div class="card-body">
+                                            <div class="form-check form-switch mb-2">
+                                                <input class="form-check-input" type="checkbox" checked="@photo.IsVisible" @onchange="(e) => TogglePhotoVisibility(photo.Id, e.Value)" />
+                                                <label class="form-check-label">Visible</label>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small">Display Name:</label>
+                                                <input type="text" class="form-control form-control-sm" value="@photo.DisplayName" @onchange="(e) => UpdatePhotoDisplayName(photo.Id, e.Value?.ToString())" />
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small">Description:</label>
+                                                <textarea class="form-control form-control-sm" rows="2" value="@photo.Description" @onchange="(e) => UpdatePhotoDescription(photo.Id, e.Value?.ToString())"></textarea>
+                                            </div>
+                                            <small class="text-muted">@photo.Filename</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        
+        @if (activeTab == "scanning")
+        {
+            <div class="tab-pane active">
+                <h3>Catalog Scanning</h3>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Full Catalog Scan</h5>
+                        <p class="card-text">
+                            Trigger a full scan of all folders and photos. This will scan the entire gallery structure 
+                            and update the database with any new, changed, or missing photos.
+                        </p>
+                        <p class="text-muted small">
+                            <strong>Note:</strong> Full scans run automatically at midnight. Use this button to trigger a scan manually.
+                        </p>
+                        <button class="btn btn-primary" @onclick="TriggerFullScan" disabled="@isScanning">
+                            @if (isScanning)
+                            {
+                                <span class="spinner-border spinner-border-sm me-2"></span>
+                            }
+                            @(isScanning ? "Scanning..." : "Start Full Scan")
+                        </button>
+                        @if (!string.IsNullOrEmpty(scanMessage))
+                        {
+                            <div class="alert @(scanMessage.Contains("Error") ? "alert-danger" : "alert-success") mt-3">@scanMessage</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string activeTab = "folders";
+    private List<Folder> allFolders = new();
+    private int selectedFolderId = 0;
+    private Folder? selectedFolder;
+    private int selectedPhotoFolderId = 0;
+    private List<Photo> folderPhotos = new();
+    private bool isSaving = false;
+    private bool isUploading = false;
+    private bool isScanning = false;
+    private string? saveMessage;
+    private string? uploadMessage;
+    private string? scanMessage;
+    private IBrowserFile[]? selectedFiles;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadFoldersAsync();
+    }
+
+    private async Task LoadFoldersAsync()
+    {
+        try
+        {
+            allFolders = await FolderService.GetAllFoldersAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading folders");
+        }
+    }
+
+    private void SetActiveTab(string tab)
+    {
+        activeTab = tab;
+    }
+
+    private async Task OnSelectedFolderChanged()
+    {
+        if (selectedFolderId > 0)
+        {
+            selectedFolder = await FolderService.GetFolderByIdAsync(selectedFolderId);
+        }
+        else
+        {
+            selectedFolder = null;
+        }
+    }
+
+    private async Task SaveFolder()
+    {
+        if (selectedFolder == null) return;
+        
+        isSaving = true;
+        saveMessage = null;
+        
+        try
+        {
+            await FolderService.UpdateFolderVisibilityAsync(selectedFolder.Id, selectedFolder.IsVisible);
+            await FolderService.UpdateFolderDescriptionAsync(selectedFolder.Id, selectedFolder.Description);
+            saveMessage = "Folder updated successfully!";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving folder");
+            saveMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+
+    private async Task OnSelectedPhotoFolderChanged()
+    {
+        if (selectedPhotoFolderId > 0)
+        {
+            folderPhotos = await PhotoService.GetAllPhotosByFolderIdAsync(selectedPhotoFolderId);
+        }
+        else
+        {
+            folderPhotos = new();
+        }
+    }
+
+    private void HandleFileSelection(InputFileChangeEventArgs e)
+    {
+        selectedFiles = e.GetMultipleFiles().ToArray();
+    }
+
+    private async Task UploadPhotos()
+    {
+        if (selectedFiles == null || selectedFiles.Length == 0 || selectedPhotoFolderId == 0)
+        {
+            uploadMessage = "Please select files and a folder";
+            return;
+        }
+
+        isUploading = true;
+        uploadMessage = null;
+
+        try
+        {
+            var folder = await FolderService.GetFolderByIdAsync(selectedPhotoFolderId);
+            if (folder == null)
+            {
+                uploadMessage = "Error: Folder not found";
+                return;
+            }
+
+            // folder.Path is now relative, resolve it to full path
+            var folderPath = PathService.GetFullPath(folder.Path);
+            if (!Directory.Exists(folderPath))
+            {
+                Directory.CreateDirectory(folderPath);
+            }
+
+            int successCount = 0;
+            int errorCount = 0;
+
+            foreach (var file in selectedFiles)
+            {
+                try
+                {
+                    var filePath = Path.Combine(folderPath, file.Name);
+                    using var stream = file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024); // 100MB max
+                    using var fileStream = new FileStream(filePath, FileMode.Create);
+                    await stream.CopyToAsync(fileStream);
+                    
+                    await PhotoService.CreateOrUpdatePhotoAsync(filePath, selectedPhotoFolderId, file.Name);
+                    successCount++;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Error uploading file {FileName}", file.Name);
+                    errorCount++;
+                }
+            }
+
+            uploadMessage = $"Upload complete: {successCount} successful, {errorCount} errors";
+            await OnSelectedPhotoFolderChanged(); // Refresh photo list
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error uploading photos");
+            uploadMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+
+    private async Task TogglePhotoVisibility(int photoId, object? value)
+    {
+        if (value is bool isVisible)
+        {
+            try
+            {
+                await PhotoService.UpdatePhotoVisibilityAsync(photoId, isVisible);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error updating photo visibility");
+            }
+        }
+    }
+
+    private async Task UpdatePhotoDisplayName(int photoId, string? displayName)
+    {
+        try
+        {
+            await PhotoService.UpdatePhotoDisplayNameAsync(photoId, displayName);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating photo display name");
+        }
+    }
+
+    private async Task UpdatePhotoDescription(int photoId, string? description)
+    {
+        try
+        {
+            await PhotoService.UpdatePhotoDescriptionAsync(photoId, description);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating photo description");
+        }
+    }
+
+    private async Task TriggerFullScan()
+    {
+        isScanning = true;
+        scanMessage = null;
+        
+        try
+        {
+            var httpClient = HttpClientFactory.CreateClient();
+            var response = await httpClient.PostAsync("/api/admin/scan/full", null);
+            if (response.IsSuccessStatusCode)
+            {
+                scanMessage = "Full catalog scan started successfully. Check logs for progress.";
+            }
+            else
+            {
+                var error = await response.Content.ReadAsStringAsync();
+                scanMessage = $"Error: {error}";
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error triggering full scan");
+            scanMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            isScanning = false;
+        }
+    }
+}

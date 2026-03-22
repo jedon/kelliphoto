@@ -14,10 +14,12 @@
         </div>
 
         <div class="text-center">
-            <img src="/api/images/photo/@Photo.Id" 
+            <img src="/api/images/web/@Photo.Id?max=2000&watermark=true" 
                  alt="@Photo.Filename" 
-                 class="img-fluid"
-                 style="max-height: 80vh; max-width: 100%;" />
+                 class="img-fluid protected-image"
+                 style="max-height: 80vh; max-width: 100%;"
+                 draggable="false"
+                 oncontextmenu="return false;" />
         </div>
 
         @if (Photo.Width.HasValue && Photo.Height.HasValue)

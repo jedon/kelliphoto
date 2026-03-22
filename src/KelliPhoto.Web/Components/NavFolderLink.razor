@@ -1,0 +1,43 @@
+@inject INavigationService NavigationService
+@inject NavigationManager Navigation
+
+@if (FolderUrl != null && FolderUrl != "/")
+{
+    <NavLink href="@FolderUrl" Match="NavLinkMatch.Prefix">@ChildContent</NavLink>
+}
+else
+{
+    <span class="nav-link-disabled">@ChildContent</span>
+}
+
+@code {
+    [Parameter] public string FolderName { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string? FolderUrl { get; set; }
+
+    private string? _lastProcessedFolderName = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _lastProcessedFolderName = FolderName;
+        FolderUrl = await NavigationService.GetFolderUrlAsync(FolderName);
+        StateHasChanged();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only reload if FolderName actually changed
+        if (_lastProcessedFolderName == FolderName)
+        {
+            return;
+        }
+
+        _lastProcessedFolderName = FolderName;
+        if (!string.IsNullOrEmpty(FolderName))
+        {
+            FolderUrl = await NavigationService.GetFolderUrlAsync(FolderName);
+            StateHasChanged();
+        }
+    }
+}

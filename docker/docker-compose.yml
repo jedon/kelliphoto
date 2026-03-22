@@ -1,24 +1,25 @@
 version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15
-    container_name: kelliphoto-postgres
-    environment:
-      POSTGRES_DB: kelli_photo
-      POSTGRES_USER: kelli_photo_app
-      POSTGRES_PASSWORD: !kelliphoto13!
-    volumes:
-      - kelliphoto_postgres_data:/var/lib/postgresql/data
-    ports:
-      - "15432:5432"  # Map to 15432 on host to avoid conflicts
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U kelli_photo_app"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - kelliphoto-network
+  # Optional: enable postgres here, or use a separate stack/service named "postgres" on the same Docker network (Proxmox/Portainer).
+  # postgres:
+  #   image: postgres:15
+  #   container_name: kelliphoto-postgres
+  #   environment:
+  #     POSTGRES_DB: kelli_photo
+  #     POSTGRES_USER: kelli_photo_app
+  #     POSTGRES_PASSWORD: !kelliphoto13!
+  #   volumes:
+  #     - kelliphoto_postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "15432:5432"  # Map to 15432 on host to avoid conflicts
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U kelli_photo_app"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+  #   networks:
+  #     - kelliphoto-network
 
   web:
     image: jedon/kelliphoto-web:latest
@@ -27,26 +28,39 @@ services:
     #   context: ..
     #   dockerfile: docker/Dockerfile
     container_name: kelliphoto-web
-    depends_on:
-      postgres:
-        condition: service_healthy
+    # depends_on:
+    #   postgres:
+    #     condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!
+      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;Timeout=30;Command Timeout=30;Pooling=true;MinPoolSize=0;MaxPoolSize=100
+      # Scan the whole mount (theme-cards, source, etc.). Photo files from Windows are under .../source.
       - GallerySettings__GalleryPath=/mnt/gallery
-      - GallerySettings__ThumbnailPath=/mnt/gallery/.thumbnails
+      - GallerySettings__LegacyWindowsLocalMountPath=/mnt/gallery/source
+      # Writable cache (gallery mount may be :ro). Logo/watermark still read from WebAssetsPath on the gallery.
+      - GallerySettings__ThumbnailPath=/app/data/thumbnails
+      - GallerySettings__WebImagePath=/app/data/web
+      - GallerySettings__WebAssetsPath=/mnt/gallery/.web
+      # DB rows may store UNC paths from a Windows scan; strip this prefix and join with LegacyWindowsLocalMountPath.
+      # Set to the Windows UNC root used when the catalog was scanned (path mapping for Linux).
+      - 'GallerySettings__LegacyWindowsGalleryRoot=\\YOUR_WINDOWS_SERVER\path\to\kelli.photo'
+      # Optional: Windows/DB folder name → Linux dir (see appsettings.json GallerySettings:FolderNameAliases). Prefer editing appsettings in the image or bind-mounting it; env keys with spaces are awkward.
     volumes:
-      - /mnt/gallery:/mnt/gallery:ro
+      # Use :ro for the gallery bind if the host mount is read-only; ThumbnailPath/WebImagePath must then stay under /app/data.
+      - /mnt/gallery:/mnt/gallery:rw
+      - kelliphoto_app_data:/app/data
     ports:
       - "8888:80"   # HTTP - using 8888 to avoid conflicts
       - "8444:443"  # HTTPS - using 8444 to avoid conflicts
     restart: unless-stopped
-    networks:
-      - kelliphoto-network
+    # Attach web + postgres to the same user-defined network in Portainer so Host=postgres resolves.
+    # networks:
+    #   - kelliphoto-network
 
-networks:
-  kelliphoto-network:
-    driver: bridge
+# networks:
+#   kelliphoto-network:
+#     driver: bridge
 
 volumes:
-  kelliphoto_postgres_data:
+  kelliphoto_app_data:
+#   kelliphoto_postgres_data:

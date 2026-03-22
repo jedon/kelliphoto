@@ -33,6 +33,13 @@ namespace KelliPhoto.Web.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<bool>("IsVisible")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -46,12 +53,17 @@ namespace KelliPhoto.Web.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<int?>("ThumbnailPhotoId")
+                        .HasColumnType("integer");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ParentId");
 
                     b.HasIndex("Path")
                         .IsUnique();
+
+                    b.HasIndex("ThumbnailPhotoId");
 
                     b.ToTable("Folders");
                 });
@@ -66,6 +78,14 @@ namespace KelliPhoto.Web.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<string>("FilePath")
                         .IsRequired()
@@ -85,6 +105,9 @@ namespace KelliPhoto.Web.Migrations
 
                     b.Property<int?>("Height")
                         .HasColumnType("integer");
+
+                    b.Property<bool>("IsVisible")
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("TakenAt")
                         .HasColumnType("timestamp with time zone");
@@ -275,12 +298,10 @@ namespace KelliPhoto.Web.Migrations
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityUserLogin<string>", b =>
                 {
                     b.Property<string>("LoginProvider")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<string>("ProviderKey")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<string>("ProviderDisplayName")
                         .HasColumnType("text");
@@ -317,12 +338,10 @@ namespace KelliPhoto.Web.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("LoginProvider")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Name")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Value")
                         .HasColumnType("text");
@@ -339,7 +358,14 @@ namespace KelliPhoto.Web.Migrations
                         .HasForeignKey("ParentId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("KelliPhoto.Web.Data.Models.Photo", "ThumbnailPhoto")
+                        .WithMany()
+                        .HasForeignKey("ThumbnailPhotoId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Parent");
+
+                    b.Navigation("ThumbnailPhoto");
                 });
 
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.Photo", b =>

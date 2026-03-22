@@ -1,23 +1,39 @@
 @using KelliPhoto.Web.Data.Models
 @inject IFolderService FolderService
+@inject IPhotoService PhotoService
+@inject IScanProgressService ProgressService
 @inject NavigationManager Navigation
+@inject ILogger<FolderBrowser> Logger
 
 <div class="folder-browser">
     @if (CurrentFolder != null)
     {
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item">
-                    <a href="/gallery" @onclick="NavigateToRoot">Home</a>
-                </li>
-                @foreach (var folder in Breadcrumbs)
+        <nav class="breadcrumb-nav" aria-label="breadcrumb">
+            @{
+                // Filter out "Home Page Highlights" and "kelli.photo" from breadcrumbs
+                var filteredBreadcrumbs = Breadcrumbs
+                    .Where(f => f.Name.ToLower() != "home page highlights" &&
+                                f.Name.ToLower() != "kelli.photo")
+                    .ToList();
+                
+                var showCurrentFolder = CurrentFolder != null && 
+                                       CurrentFolder.Name.ToLower() != "home page highlights" &&
+                                       CurrentFolder.Name.ToLower() != "kelli.photo";
+            }
+            
+            @if (filteredBreadcrumbs.Any() || showCurrentFolder)
+            {
+                @foreach (var folder in filteredBreadcrumbs)
                 {
-                    <li class="breadcrumb-item">
-                        <a href="#" @onclick="() => NavigateToFolder(folder.Id)">@folder.Name</a>
-                    </li>
+                    <a href="#" @onclick="() => NavigateToFolder(folder.Id)">@folder.Name</a>
+                    <span class="breadcrumb-separator">/</span>
                 }
-                <li class="breadcrumb-item active" aria-current="page">@CurrentFolder.Name</li>
-            </ol>
+                
+                @if (showCurrentFolder)
+                {
+                    <span class="breadcrumb-current">@CurrentFolder.Name</span>
+                }
+            }
         </nav>
 
         <div class="folder-list">
@@ -29,9 +45,25 @@
                     {
                         <div class="col-md-3 col-sm-4 col-6 mb-3">
                             <div class="card folder-card" @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
+                                @if (FolderThumbnails.ContainsKey(folder.Id) && FolderThumbnails[folder.Id] != null)
+                                {
+                                    <img src="/api/images/thumbnail/@FolderThumbnails[folder.Id]!.Id?size=300" 
+                                         alt="@folder.Name" 
+                                         class="folder-thumbnail"
+                                         loading="lazy"
+                                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                    <div class="folder-icon-fallback" style="display: none;">
+                                        <i class="bi bi-folder"></i>
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="folder-icon-fallback">
+                                        <i class="bi bi-folder"></i>
+                                    </div>
+                                }
                                 <div class="card-body text-center">
-                                    <i class="bi bi-folder" style="font-size: 3rem;"></i>
-                                    <p class="card-text mt-2">@folder.Name</p>
+                                    <p class="card-text">@folder.Name</p>
                                 </div>
                             </div>
                         </div>
@@ -42,24 +74,52 @@
     }
     else if (RootFolders.Any())
     {
-        <h4>Gallery Folders</h4>
+        <div class="folder-list">
+        <h5>Gallery Folders</h5>
         <div class="row">
             @foreach (var folder in RootFolders)
             {
                 <div class="col-md-3 col-sm-4 col-6 mb-3">
                     <div class="card folder-card" @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
+                        @if (FolderThumbnails.ContainsKey(folder.Id) && FolderThumbnails[folder.Id] != null)
+                        {
+                            <img src="/api/images/thumbnail/@FolderThumbnails[folder.Id]!.Id?size=300" 
+                                 alt="@folder.Name" 
+                                 class="folder-thumbnail"
+                                 loading="lazy"
+                                 draggable="false"
+                                 oncontextmenu="return false;"
+                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                            <div class="folder-icon-fallback" style="display: none;">
+                                <i class="bi bi-folder"></i>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="folder-icon-fallback">
+                                <i class="bi bi-folder"></i>
+                            </div>
+                        }
                         <div class="card-body text-center">
-                            <i class="bi bi-folder" style="font-size: 3rem;"></i>
-                            <p class="card-text mt-2">@folder.Name</p>
+                            <p class="card-text">@folder.Name</p>
                         </div>
                     </div>
                 </div>
             }
         </div>
+        </div>
     }
-    else
+    else if (!string.IsNullOrEmpty(errorMessage))
     {
-        <p>No folders found. The gallery is being scanned...</p>
+        <div class="alert alert-warning" role="alert">
+            <strong>Connection Error:</strong> @errorMessage
+            <br />
+            <small>Please check your database connection and try refreshing the page.</small>
+        </div>
+    }
+    else if (!isLoading && !FolderId.HasValue)
+    {
+        <p class="empty-state">No folders found.</p>
     }
 </div>
 
@@ -70,65 +130,296 @@
     private List<Folder> ChildFolders { get; set; } = new();
     private Folder? CurrentFolder { get; set; }
     private List<Folder> Breadcrumbs { get; set; } = new();
+    private Dictionary<int, Photo?> FolderThumbnails { get; set; } = new();
+    private bool isLoading = false;
+    private string? errorMessage = null;
+
+    private int? _lastLoadedFolderId = null;
 
     protected override async Task OnInitializedAsync()
     {
+        _lastLoadedFolderId = FolderId;
         await LoadFoldersAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        // Only reload if FolderId actually changed
+        if (_lastLoadedFolderId == FolderId)
+        {
+            Logger.LogDebug("FolderBrowser.OnParametersSet: FolderId unchanged ({FolderId}), skipping reload", FolderId);
+            return;
+        }
+
+        Logger.LogInformation("FolderBrowser.OnParametersSet: FolderId changed from {OldFolderId} to {NewFolderId}", 
+            _lastLoadedFolderId, FolderId);
+        _lastLoadedFolderId = FolderId;
         await LoadFoldersAsync();
     }
 
     private async Task LoadFoldersAsync()
     {
-        if (FolderId.HasValue)
+        if (isLoading) return;
+        
+        isLoading = true;
+        errorMessage = null;
+        
+        try
         {
-            CurrentFolder = await FolderService.GetFolderByIdAsync(FolderId.Value);
-            if (CurrentFolder != null)
+            if (FolderId.HasValue)
             {
-                ChildFolders = await FolderService.GetChildFoldersAsync(FolderId.Value);
-                Breadcrumbs = await BuildBreadcrumbsAsync(CurrentFolder);
+                // Load sequentially to avoid DbContext concurrency issues
+                CurrentFolder = await FolderService.GetFolderByIdAsync(FolderId.Value);
+                if (CurrentFolder != null)
+                {
+                    // These are already sequential due to await
+                    ChildFolders = await FolderService.GetChildFoldersAsync(FolderId.Value);
+                    if (ChildFolders == null)
+                    {
+                        ChildFolders = new();
+                    }
+                    // Filter out directories starting with ., Home Page Highlights, and testfolder as additional safety measure
+                    ChildFolders = ChildFolders
+                        .Where(f => !f.Name.StartsWith(".") &&
+                                   f.Name.ToLower() != "home page highlights" &&
+                                   f.Name.ToLower() != "testfolder")
+                        .ToList();
+                    Breadcrumbs = await BuildBreadcrumbsAsync(CurrentFolder);
+                    if (Breadcrumbs == null)
+                    {
+                        Breadcrumbs = new();
+                    }
+                    
+                    // Load thumbnails for child folders
+                    await LoadFolderThumbnailsAsync(ChildFolders);
+                }
+            }
+            else
+            {
+                // Use GetTopLevelFoldersAsync to skip the kelli.photo root folder
+                RootFolders = await FolderService.GetTopLevelFoldersAsync();
+                Logger.LogInformation("FolderBrowser: Loaded {Count} root folders from database", RootFolders?.Count ?? 0);
+                
+                if (RootFolders == null)
+                {
+                    RootFolders = new();
+                }
+                // Filter out directories starting with ., Home Page Highlights, and testfolder as additional safety measure
+                var beforeFilter = RootFolders.Count;
+                RootFolders = RootFolders
+                    .Where(f => !f.Name.StartsWith(".") &&
+                               f.Name.ToLower() != "home page highlights" &&
+                               f.Name.ToLower() != "testfolder")
+                    .ToList();
+                Logger.LogInformation("FolderBrowser: After filtering, {Count} folders remain (filtered {FilteredCount})", 
+                    RootFolders.Count, beforeFilter - RootFolders.Count);
+                
+                CurrentFolder = null;
+                ChildFolders = new();
+                Breadcrumbs = new();
+                
+                // Load thumbnails for root folders
+                await LoadFolderThumbnailsAsync(RootFolders);
             }
         }
-        else
+        catch (System.Net.Sockets.SocketException ex)
         {
-            RootFolders = await FolderService.GetRootFoldersAsync();
-            CurrentFolder = null;
-            ChildFolders = new();
-            Breadcrumbs = new();
+            // Network/connection error
+            Logger.LogError(ex, "Network error loading folders");
+            errorMessage = "Network connection error. Please check your internet connection and database server.";
+            if (RootFolders == null)
+            {
+                RootFolders = new();
+            }
+            if (ChildFolders == null)
+            {
+                ChildFolders = new();
+            }
+            if (Breadcrumbs == null)
+            {
+                Breadcrumbs = new();
+            }
+        }
+        catch (System.IO.IOException ex)
+        {
+            // I/O error (often related to database connection)
+            Logger.LogError(ex, "I/O error loading folders");
+            errorMessage = "Database connection error. The connection may have been interrupted.";
+            if (RootFolders == null)
+            {
+                RootFolders = new();
+            }
+            if (ChildFolders == null)
+            {
+                ChildFolders = new();
+            }
+            if (Breadcrumbs == null)
+            {
+                Breadcrumbs = new();
+            }
+        }
+        catch (Microsoft.EntityFrameworkCore.DbUpdateException ex)
+        {
+            // Database update/query error
+            Logger.LogError(ex, "Database error loading folders");
+            errorMessage = "Database error occurred. Please try again.";
+            if (RootFolders == null)
+            {
+                RootFolders = new();
+            }
+            if (ChildFolders == null)
+            {
+                ChildFolders = new();
+            }
+            if (Breadcrumbs == null)
+            {
+                Breadcrumbs = new();
+            }
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("context") || ex.Message.Contains("operation"))
+        {
+            // DbContext concurrency error
+            Logger.LogError(ex, "Database concurrency error loading folders");
+            errorMessage = "Database operation conflict. Please refresh the page.";
+            if (RootFolders == null)
+            {
+                RootFolders = new();
+            }
+            if (ChildFolders == null)
+            {
+                ChildFolders = new();
+            }
+            if (Breadcrumbs == null)
+            {
+                Breadcrumbs = new();
+            }
+        }
+        catch (Exception ex) when (ex.GetType().FullName?.Contains("Npgsql") == true)
+        {
+            // Database connection error
+            Logger.LogError(ex, "Database connection error loading folders");
+            errorMessage = "Unable to connect to the database. Please check your connection settings.";
+            if (RootFolders == null)
+            {
+                RootFolders = new();
+            }
+            if (ChildFolders == null)
+            {
+                ChildFolders = new();
+            }
+            if (Breadcrumbs == null)
+            {
+                Breadcrumbs = new();
+            }
+        }
+        catch (Exception ex)
+        {
+            // Other errors
+            Logger.LogError(ex, "Error loading folders");
+            errorMessage = $"An error occurred: {ex.Message}";
+            if (RootFolders == null)
+            {
+                RootFolders = new();
+            }
+            if (ChildFolders == null)
+            {
+                ChildFolders = new();
+            }
+            if (Breadcrumbs == null)
+            {
+                Breadcrumbs = new();
+            }
+        }
+        finally
+        {
+            isLoading = false;
         }
     }
 
     private async Task<List<Folder>> BuildBreadcrumbsAsync(Folder folder)
     {
-        var breadcrumbs = new List<Folder>();
-        var current = folder.Parent;
-
-        while (current != null)
-        {
-            breadcrumbs.Insert(0, current);
-            if (current.ParentId.HasValue)
-            {
-                current = await FolderService.GetFolderByIdAsync(current.ParentId.Value);
-            }
-            else
-            {
-                current = null;
-            }
-        }
-
-        return breadcrumbs;
+        // Use FolderService to get the full breadcrumb path
+        // This queries the database to get the complete parent chain
+        return await FolderService.GetBreadcrumbPathAsync(folder.Id);
     }
 
-    private void NavigateToFolder(int folderId)
+    private async Task NavigateToFolder(int folderId)
     {
+        Logger.LogInformation("FolderBrowser.NavigateToFolder: User clicked folder with Id={FolderId}", folderId);
+        
+        try
+        {
+            var folder = await FolderService.GetFolderByIdAsync(folderId);
+            if (folder != null)
+            {
+                // Quick check if folder needs scanning
+                var needsScan = await PhotoService.NeedsFolderScanAsync(folderId, folder.Path);
+                if (needsScan)
+                {
+                    Logger.LogInformation("Folder {FolderId} needs scanning, starting scan...", folderId);
+                    
+                    // Scan the folder in background with progress tracking
+                    // Use batched method with batch size of 400 for optimal performance
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            await PhotoService.ScanPhotosInFolderBatchedAsync(folderId, folder.Path, ProgressService, batchSize: 400);
+                            Logger.LogInformation("Completed scan for folder {FolderId}", folderId);
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.LogError(ex, "Error scanning folder {FolderId}", folderId);
+                            ProgressService.CompleteScan(folderId); // Mark as complete even on error
+                        }
+                    });
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking folder scan status for {FolderId}", folderId);
+        }
+        
         Navigation.NavigateTo($"/gallery/{folderId}");
     }
 
     private void NavigateToRoot()
     {
+        Logger.LogInformation("FolderBrowser.NavigateToRoot: User navigated to root gallery");
         Navigation.NavigateTo("/gallery");
+    }
+
+    private async void NavigateToHome()
+    {
+        Logger.LogInformation("FolderBrowser.NavigateToHome: User navigated to home");
+        var homePageHighlights = await FolderService.GetFolderByNameAsync("Home Page Highlights");
+        if (homePageHighlights != null)
+        {
+            Navigation.NavigateTo($"/gallery/{homePageHighlights.Id}");
+        }
+        else
+        {
+            Navigation.NavigateTo("/");
+        }
+    }
+
+    private async Task LoadFolderThumbnailsAsync(List<Folder> folders)
+    {
+        FolderThumbnails.Clear();
+        
+        foreach (var folder in folders)
+        {
+            try
+            {
+                var thumbnail = await FolderService.GetFolderThumbnailAsync(folder.Id);
+                FolderThumbnails[folder.Id] = thumbnail;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to load thumbnail for folder {FolderId}", folder.Id);
+                FolderThumbnails[folder.Id] = null;
+            }
+        }
     }
 }

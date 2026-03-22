@@ -32,5 +32,13 @@ public class Photo
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    public bool IsVisible { get; set; } = true;
+
+    [MaxLength(500)]
+    public string? DisplayName { get; set; }
+
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
     public List<Thumbnail> Thumbnails { get; set; } = new();
 }
