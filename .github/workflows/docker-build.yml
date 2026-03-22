@@ -1,5 +1,8 @@
 name: Build and Push Docker Image
 
+# Runtime secrets (DB, SMTP, etc.) are not baked into the image. Use GitHub Secrets + env
+# at deploy time (e.g. docker compose) or your host’s secret store — see src/KelliPhoto.Web/.env.example.
+
 on:
   push:
     branches:

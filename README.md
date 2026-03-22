@@ -41,8 +41,8 @@ Developer-focused documentation (local setup, architecture) lives in the [docs/]
    ```
 
 2. **Configure settings:**
-   - Update `src/KelliPhoto.Web/appsettings.Development.json` with your PostgreSQL connection string
-   - Update `GallerySettings` with your gallery path
+   - Copy `src/KelliPhoto.Web/.env.example` to `src/KelliPhoto.Web/.env` and set `ConnectionStrings__DefaultConnection` and `Email__SmtpPassword` (see [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)).
+   - Set `GallerySettings` in `appsettings.Development.json` (or override with environment variables) for your gallery paths.
 
 3. **Run database migrations:**
    ```bash
@@ -107,12 +107,9 @@ For local development, update `appsettings.Development.json`:
 
 ### Database
 
-PostgreSQL connection string format:
-```
-Host=postgres.darklingdesign.com;Port=5432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!
-```
+Use a PostgreSQL connection string in `.env` as `ConnectionStrings__DefaultConnection` (see `.env.example`). Do not commit passwords to the repository.
 
-For Docker deployment, the connection is automatically configured via environment variables.
+For Docker deployment, pass the connection string via environment variables (for example `CONNECTION_STRINGS__DEFAULT_CONNECTION`); see `docker/.env.example`.
 
 ### iptables Port Forwarding (Proxmox)
 
@@ -140,7 +137,8 @@ kelli.photo/
 ├── scripts/                     # Shell and PowerShell automation (migrations, verification)
 ├── .github/
 │   └── workflows/
-│       └── docker-build.yml    # GitHub Actions CI/CD
+│       ├── docker-build.yml    # Build and push Docker image
+│       └── dotnet-ci.yml       # Restore, build, test on push/PR
 └── README.md
 ```
 
@@ -175,10 +173,8 @@ dotnet test
 
 ### GitHub Actions
 
-The repository includes a GitHub Actions workflow that:
-- Builds the Docker image on push to main/master
-- Pushes to Docker Hub
-- Tags with `latest`, branch name, and commit SHA
+- **`.github/workflows/dotnet-ci.yml`** — restores, builds, and runs `dotnet test` on pushes and pull requests to `main`/`master`. Configure repository secrets `CONNECTION_STRINGS__DEFAULT_CONNECTION` and `EMAIL__SMTP_PASSWORD` so the app configuration is valid during the test run.
+- **`docker-build.yml`** — builds the Docker image on push to main/master, pushes to Docker Hub, and tags with `latest`, branch name, and commit SHA.
 
 ### Updating the Application
 

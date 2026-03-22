@@ -45,9 +45,8 @@ docker-compose exec web dotnet ef database update
 
 ## Database
 
-- Database: `kelli_photo`
-- User: `kelli_photo_app`
-- Password: `!kelliphoto13!`
+- Database: `kelli_photo` (example; match your deployment)
+- Credentials: set via Compose or `.env` — do not commit real passwords to the repository
 
 ## Volumes
 

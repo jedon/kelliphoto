@@ -10,6 +10,17 @@ using KelliPhoto.Web.Services;
 using Serilog;
 using System.IO;
 using Microsoft.Extensions.Configuration;
+using DotNetEnv;
+
+// Load .env before configuration binds (maps Email__SmtpPassword → Email:SmtpPassword).
+var envPath = Path.Combine(Directory.GetCurrentDirectory(), ".env");
+if (!File.Exists(envPath))
+    envPath = Path.Combine(AppContext.BaseDirectory, ".env");
+if (File.Exists(envPath))
+    Env.Load(envPath);
+
+static bool IsMvcIntegrationTestHost() =>
+    string.Equals(Environment.GetEnvironmentVariable("KELLIPHOTO_INTEGRATION_TEST"), "1", StringComparison.OrdinalIgnoreCase);
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -48,72 +59,61 @@ builder.Services.AddServerSideBlazor(options =>
 });
 builder.Services.AddControllers();
 
-// Configure PostgreSQL and Entity Framework
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") 
-    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
+// Configure PostgreSQL and Entity Framework. WebApplicationFactory often still sees Development from
+// launchSettings before UseEnvironment("Testing") runs; tests set KELLIPHOTO_INTEGRATION_TEST=1 (see test factory).
+var useInMemoryIntegrationTest = string.Equals(
+    builder.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase)
+    || IsMvcIntegrationTestHost();
 
-// Configure DbContext options action (shared configuration)
-Action<DbContextOptionsBuilder> configureDbContext = options =>
+if (useInMemoryIntegrationTest)
 {
-    options.UseNpgsql(connectionString, npgsqlOptions =>
-    {
-        // Enable retry on failure for transient errors
-        npgsqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(5),
-            errorCodesToAdd: null);
-    });
-    
-    // Enable sensitive data logging in development
-    if (builder.Environment.IsDevelopment())
-    {
-        options.EnableSensitiveDataLogging();
-    }
-    
-    // SQL query logging disabled to reduce log clutter
-    // Uncomment below to enable SQL logging for debugging:
-    // options.LogTo(message => 
-    // {
-    //     if (message.Contains("Executing") || message.Contains("Executed") || message.Contains("SELECT") || message.Contains("FROM"))
-    //     {
-    //         Log.Information("SQL: {Message}", message);
-    //     }
-    // }, 
-    // Microsoft.Extensions.Logging.LogLevel.Information);
-};
-
-// Register DbContextFactory for thread-safe operations
-// The factory is singleton and creates its own DbContext instances on demand
-builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+    // Tests can set KELLIPHOTO_INMEMORY_DB before the host builds (configuration merge is not always visible this early).
+    var inMemoryName = builder.Configuration["Testing:InMemoryDatabaseName"]
+        ?? Environment.GetEnvironmentVariable("KELLIPHOTO_INMEMORY_DB")
+        ?? "KelliPhotoTestingDb";
+    // One factory + scoped contexts from it so IDbContextFactory and scoped ApplicationDbContext share the same in-memory store.
+    builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+        options.UseInMemoryDatabase(inMemoryName));
+    builder.Services.AddScoped<ApplicationDbContext>(sp =>
+        sp.GetRequiredService<IDbContextFactory<ApplicationDbContext>>().CreateDbContext());
+}
+else
 {
-    options.UseNpgsql(connectionString, npgsqlOptions =>
-    {
-        npgsqlOptions.EnableRetryOnFailure(
-            maxRetryCount: 3,
-            maxRetryDelay: TimeSpan.FromSeconds(5),
-            errorCodesToAdd: null);
-    });
-    
-    if (builder.Environment.IsDevelopment())
-    {
-        options.EnableSensitiveDataLogging();
-    }
-    
-    // SQL query logging disabled to reduce log clutter
-    // Uncomment below to enable SQL logging for debugging:
-    // options.LogTo(message => 
-    // {
-    //     if (message.Contains("Executing") || message.Contains("Executed") || message.Contains("SELECT") || message.Contains("FROM"))
-    //     {
-    //         Log.Information("SQL: {Message}", message);
-    //     }
-    // }, 
-    // Microsoft.Extensions.Logging.LogLevel.Information);
-});
+    var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+    if (string.IsNullOrWhiteSpace(connectionString))
+        throw new InvalidOperationException(
+            "Connection string 'DefaultConnection' is missing. Set ConnectionStrings__DefaultConnection in .env or the environment (see .env.example).");
 
-// Register DbContextPool for Identity (uses pooling, more efficient than AddDbContext)
-// This also provides a scoped DbContext that Identity can use
-builder.Services.AddDbContextPool<ApplicationDbContext>(configureDbContext, poolSize: 128);
+    Action<DbContextOptionsBuilder> configureDbContext = options =>
+    {
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorCodesToAdd: null);
+        });
+
+        if (builder.Environment.IsDevelopment())
+            options.EnableSensitiveDataLogging();
+    };
+
+    builder.Services.AddDbContextFactory<ApplicationDbContext>(options =>
+    {
+        options.UseNpgsql(connectionString, npgsqlOptions =>
+        {
+            npgsqlOptions.EnableRetryOnFailure(
+                maxRetryCount: 3,
+                maxRetryDelay: TimeSpan.FromSeconds(5),
+                errorCodesToAdd: null);
+        });
+
+        if (builder.Environment.IsDevelopment())
+            options.EnableSensitiveDataLogging();
+    });
+
+    builder.Services.AddDbContextPool<ApplicationDbContext>(configureDbContext, poolSize: 128);
+}
 
 // Configure Identity
 builder.Services.AddDefaultIdentity<IdentityUser>(options => 
@@ -167,7 +167,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseHttpsRedirection();
+// WebApplicationFactory uses HTTP; HTTPS redirection breaks in-memory TestServer clients.
+if (!app.Environment.IsEnvironment("Testing") && !IsMvcIntegrationTestHost())
+    app.UseHttpsRedirection();
 
 app.UseStaticFiles();
 

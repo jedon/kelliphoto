@@ -10,19 +10,21 @@
 
 1. Clone the repository. From the **repository root**, run the commands below.
 
-2. Copy or edit configuration (do not commit secrets):
+2. **Secrets and connection strings (recommended):** copy `src/KelliPhoto.Web/.env.example` to `src/KelliPhoto.Web/.env` (the file is gitignored). The app loads it at startup via [DotNetEnv](https://github.com/tonerdo/dotnet-env) before configuration binds, so nested keys use **double underscores** (for example `ConnectionStrings__DefaultConnection`, `Email__SmtpPassword`). The same variable names work in the shell and in Docker Compose; see `docker/.env.example` for compose-specific notes.
 
-   - `src/KelliPhoto.Web/appsettings.json` — base settings (override locally with `appsettings.Development.json` or environment variables).
-   - Set `ConnectionStrings:DefaultConnection` to your PostgreSQL instance.
-   - Set `GallerySettings` paths to a directory of images you can read from the dev machine.
+3. **Non-secret settings** stay in `appsettings.json` / `appsettings.Development.json` (for example `GallerySettings` paths). If `DefaultConnection` is missing and the app is not running under the integration-test host, startup fails with a clear error so you do not accidentally run against no database.
 
-3. Apply EF Core migrations:
+4. **EF Core CLI** (`dotnet ef`): `ApplicationDbContextFactory` also loads `.env` so migrations pick up the connection string without duplicating it in JSON.
+
+5. **GitHub Actions:** the [.NET CI workflow](../.github/workflows/dotnet-ci.yml) expects repository secrets `CONNECTION_STRINGS__DEFAULT_CONNECTION` and `EMAIL__SMTP_PASSWORD`, mapped to the same env names the app uses. Do not commit real values; configure secrets under **Settings → Secrets and variables → Actions**.
+
+6. Apply EF Core migrations:
 
    ```powershell
    dotnet ef database update --project src\KelliPhoto.Web
    ```
 
-4. Run the site:
+7. Run the site:
 
    ```powershell
    dotnet run --project src\KelliPhoto.Web
@@ -45,7 +47,7 @@ From the repository root:
 dotnet test
 ```
 
-The test project lives under `tests/KelliPhoto.Web.Tests`.
+The test project lives under `tests/KelliPhoto.Web.Tests`. **Integration tests** use `WebApplicationFactory` with `ASPNETCORE_ENVIRONMENT=Testing` and `KELLIPHOTO_INTEGRATION_TEST=1`; the app switches Entity Framework to an in-memory database and skips HTTPS redirection. Each test run should use a **configured** `WebApplicationFactory` from `WithWebHostBuilder` (not only the shared fixture type) so `GallerySettings` overrides match the temp directories where tests create image files.
 
 ## Logging
 
