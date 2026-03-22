@@ -17,18 +17,17 @@ public interface IPathService
 public class PathService : IPathService
 {
     private readonly IConfiguration _configuration;
-    private readonly string _galleryBasePath;
     private Dictionary<string, string>? _folderNameAliases;
 
     public PathService(IConfiguration configuration)
     {
         _configuration = configuration;
-        _galleryBasePath = _configuration["GallerySettings:GalleryPath"] 
-            ?? throw new InvalidOperationException("GallerySettings:GalleryPath not configured");
-        
-        // Normalize the base path
-        _galleryBasePath = NormalizePath(_galleryBasePath);
     }
+
+    /// <summary>Read on each use so integration tests (and late config sources) see the correct gallery root.</summary>
+    private string GalleryBasePath =>
+        NormalizePath(_configuration["GallerySettings:GalleryPath"]
+            ?? throw new InvalidOperationException("GallerySettings:GalleryPath not configured"));
 
     public string GetRelativePath(string fullPath)
     {
@@ -36,7 +35,7 @@ public class PathService : IPathService
             return string.Empty;
 
         var normalizedFullPath = NormalizePath(fullPath);
-        var normalizedBasePath = NormalizePath(_galleryBasePath);
+        var normalizedBasePath = NormalizePath(GalleryBasePath);
         
         // Use case-insensitive comparison (important for Windows/UNC paths)
         StringComparison comparison = StringComparison.OrdinalIgnoreCase;
@@ -57,7 +56,7 @@ public class PathService : IPathService
     public string GetFullPath(string relativePath)
     {
         if (string.IsNullOrEmpty(relativePath))
-            return _galleryBasePath;
+            return GalleryBasePath;
 
         var remapped = TryRemapLegacyWindowsUncToGallery(relativePath);
         if (remapped != null)
@@ -74,16 +73,17 @@ public class PathService : IPathService
 
         // Combine with base path - handle UNC paths specially
         string fullPath;
-        if (_galleryBasePath.StartsWith(@"\\", StringComparison.Ordinal))
+        var galleryBase = GalleryBasePath;
+        if (galleryBase.StartsWith(@"\\", StringComparison.Ordinal))
         {
             // For UNC paths, use string concatenation with proper separator
-            var separator = _galleryBasePath.EndsWith(@"\") || _galleryBasePath.EndsWith("/") ? "" : @"\";
-            fullPath = _galleryBasePath + separator + relativePath;
+            var separator = galleryBase.EndsWith(@"\") || galleryBase.EndsWith("/") ? "" : @"\";
+            fullPath = galleryBase + separator + relativePath;
         }
         else
         {
             // For regular paths, use Path.Combine
-            fullPath = Path.Combine(_galleryBasePath, relativePath);
+            fullPath = Path.Combine(galleryBase, relativePath);
         }
         
         return NormalizePath(fullPath);
@@ -111,7 +111,7 @@ public class PathService : IPathService
         if (TryGetLegacyUncRemainder(storedPath, out var remainder))
         {
             remainder = remainder.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
-            TryAdd(Path.Combine(_galleryBasePath, remainder));
+            TryAdd(Path.Combine(GalleryBasePath, remainder));
 
             var localMount = _configuration["GallerySettings:LegacyWindowsLocalMountPath"];
             if (!string.IsNullOrWhiteSpace(localMount))
@@ -203,7 +203,7 @@ public class PathService : IPathService
             list.Add(p);
         }
 
-        AddRoot(_galleryBasePath);
+        AddRoot(GalleryBasePath);
         AddRoot(_configuration["GallerySettings:LegacyWindowsLocalMountPath"]);
         list.Sort((a, b) => b.Length.CompareTo(a.Length));
         return list;
@@ -353,7 +353,7 @@ public class PathService : IPathService
             return null;
 
         if (string.IsNullOrEmpty(remainder))
-            return _galleryBasePath;
+            return GalleryBasePath;
 
         remainder = remainder.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar);
 
@@ -361,7 +361,7 @@ public class PathService : IPathService
         // set LegacyWindowsLocalMountPath to that Linux directory. Otherwise UNC paths map next to theme-cards, etc.
         var localMount = _configuration["GallerySettings:LegacyWindowsLocalMountPath"];
         var targetBase = string.IsNullOrWhiteSpace(localMount)
-            ? _galleryBasePath
+            ? GalleryBasePath
             : NormalizePath(localMount);
 
         return NormalizePath(Path.Combine(targetBase, remainder));

@@ -1,0 +1,34 @@
+name: .NET CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+# Repository secrets → same names ASP.NET Core / DotNetEnv expect (mirrors .env).
+# GitHub: Settings → Secrets and variables → Actions → New repository secret
+# See src/KelliPhoto.Web/.env.example for the list and docker/.env.example for Compose.
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+    env:
+      ConnectionStrings__DefaultConnection: ${{ secrets.CONNECTION_STRINGS__DEFAULT_CONNECTION }}
+      Email__SmtpPassword: ${{ secrets.EMAIL__SMTP_PASSWORD }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Restore
+        run: dotnet restore KelliPhoto.sln
+
+      - name: Build
+        run: dotnet build KelliPhoto.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test KelliPhoto.sln --configuration Release --no-build --verbosity normal

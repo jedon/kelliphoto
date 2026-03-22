@@ -171,6 +171,9 @@ FodyWeavers.xsd
 **/Migrations/*.Designer.cs
 !**/Migrations/*.Designer.cs.bak
 
+# Local secrets (SMTP password, etc.)
+.env
+
 # Sensitive configuration files
 appsettings.Development.json
 appsettings.Production.json

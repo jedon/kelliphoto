@@ -8,7 +8,7 @@ services:
   #   environment:
   #     POSTGRES_DB: kelli_photo
   #     POSTGRES_USER: kelli_photo_app
-  #     POSTGRES_PASSWORD: !kelliphoto13!
+  #     POSTGRES_PASSWORD: <set in docker/.env, not in git>
   #   volumes:
   #     - kelliphoto_postgres_data:/var/lib/postgresql/data
   #   ports:
@@ -33,7 +33,8 @@ services:
     #     condition: service_healthy
     environment:
       - ASPNETCORE_ENVIRONMENT=Production
-      - ConnectionStrings__DefaultConnection=Host=postgres;Port=5432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;Timeout=30;Command Timeout=30;Pooling=true;MinPoolSize=0;MaxPoolSize=100
+      # Set CONNECTION_STRINGS__DEFAULT_CONNECTION in docker/.env (see .env.example). Compose loads .env from this folder for substitution.
+      - ConnectionStrings__DefaultConnection=${CONNECTION_STRINGS__DEFAULT_CONNECTION}
       # Scan the whole mount (theme-cards, source, etc.). Photo files from Windows are under .../source.
       - GallerySettings__GalleryPath=/mnt/gallery
       - GallerySettings__LegacyWindowsLocalMountPath=/mnt/gallery/source
