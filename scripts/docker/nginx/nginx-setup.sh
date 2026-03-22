@@ -2,11 +2,16 @@
 # Nginx setup script for Kelli Photo Gallery
 # Run this on your server where nginx is installed
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
+NGINX_CONF_DIR="$REPO_ROOT/docker/nginx"
+
 echo "Setting up Nginx reverse proxy for Kelli Photo Gallery..."
 
 NGINX_SITES_AVAILABLE="/etc/nginx/sites-available"
 NGINX_SITES_ENABLED="/etc/nginx/sites-enabled"
 CONFIG_FILE="kelliphoto.darklingdesign.com"
+SOURCE_CONF="$NGINX_CONF_DIR/kelli.photo.conf"
 
 # Check if nginx is installed
 if ! command -v nginx &> /dev/null; then
@@ -15,9 +20,13 @@ if ! command -v nginx &> /dev/null; then
     sudo apt-get install -y nginx
 fi
 
-# Copy configuration file
+# Copy configuration file (from repo docker/nginx into sites-available)
 echo "Copying nginx configuration..."
-sudo cp nginx/${CONFIG_FILE} ${NGINX_SITES_AVAILABLE}/${CONFIG_FILE}
+if [ ! -f "$SOURCE_CONF" ]; then
+    echo "ERROR: Nginx sample config not found: $SOURCE_CONF"
+    exit 1
+fi
+sudo cp "$SOURCE_CONF" "${NGINX_SITES_AVAILABLE}/${CONFIG_FILE}"
 
 # Create symlink if it doesn't exist
 if [ ! -L "${NGINX_SITES_ENABLED}/${CONFIG_FILE}" ]; then

@@ -4,8 +4,9 @@
 
 echo "Applying database migration..."
 
-# Make sure you're in the project directory
-cd /path/to/kelli.photo/src/KelliPhoto.Web
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$REPO_ROOT/src/KelliPhoto.Web" || exit 1
 
 # Update the database
 dotnet ef database update

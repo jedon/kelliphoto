@@ -54,4 +54,4 @@ Serilog is configured in `appsettings.json` (console plus optional file sink). A
 ## Related docs
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) — how the app is organized
-- [../docker/README.md](../docker/README.md) — container deployment
+- [docker/README.md](docker/README.md) — container deployment

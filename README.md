@@ -134,10 +134,10 @@ kelli.photo/
 │       ├── Pages/               # Blazor pages (Gallery, PhotoDetail)
 │       ├── Services/            # Business logic services
 │       └── Shared/              # Shared components and layouts
-├── docker/                      # Docker configuration
-│   ├── Dockerfile              # Multi-stage build for Blazor Server
-│   ├── docker-compose.yml     # Stack definition
-│   └── PORTAINER_SETUP.md     # Portainer deployment guide
+├── docker/                      # Docker configuration (Dockerfile, compose, nginx configs)
+├── docs/                        # Documentation (see docs/README.md)
+│   └── docker/                  # Docker / Portainer / deployment guides
+├── scripts/                     # Shell and PowerShell automation (migrations, verification)
 ├── .github/
 │   └── workflows/
 │       └── docker-build.yml    # GitHub Actions CI/CD
