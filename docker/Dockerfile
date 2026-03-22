@@ -21,14 +21,11 @@ WORKDIR /app
 EXPOSE 80
 EXPOSE 443
 
-# Install .NET EF Core tools for running migrations
-RUN dotnet tool install --global dotnet-ef --version 10.0.0
-ENV PATH="$PATH:/root/.dotnet/tools"
+# Run EF migrations from SDK (dev/CI), not in this runtime image.
 
 COPY --from=publish /app/publish .
 
-# Create thumbnail and logs directories
-RUN mkdir -p /mnt/gallery/.thumbnails && \
-    mkdir -p /app/logs
+# Writable caches (when GallerySettings point here); gallery mount may be read-only in production.
+RUN mkdir -p /app/data/thumbnails /app/data/web /app/logs
 
 ENTRYPOINT ["dotnet", "KelliPhoto.Web.dll"]

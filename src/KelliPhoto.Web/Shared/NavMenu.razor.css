@@ -1,68 +1,69 @@
-.navbar-toggler {
-    background-color: rgba(255, 255, 255, 0.1);
+.main-nav {
+    display: flex;
+    gap: 2rem;
+    align-items: center;
+    flex-wrap: wrap;
 }
 
-.top-row {
-    height: 3.5rem;
-    background-color: rgba(0,0,0,0.4);
+.main-nav ::deep a {
+    color: #D4AF37;
+    text-decoration: none;
+    font-size: 0.95rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    padding: 0.5rem 0;
+    position: relative;
+    transition: color 0.2s;
 }
 
-.navbar-brand {
-    font-size: 1.1rem;
+.main-nav ::deep a:hover {
+    color: #F4D03F;
 }
 
-.oi {
-    width: 2rem;
-    font-size: 1.1rem;
-    vertical-align: text-top;
-    top: -2px;
+.main-nav ::deep a.active {
+    color: #D4AF37;
+    font-weight: 500;
 }
 
-.nav-item {
-    font-size: 0.9rem;
-    padding-bottom: 0.5rem;
+.main-nav ::deep a.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background-color: #333;
 }
 
-    .nav-item:first-of-type {
-        padding-top: 1rem;
+.main-nav .admin-link,
+.main-nav .nav-link {
+    margin-left: 1rem;
+    padding-left: 1rem;
+    border-left: 1px solid #333;
+    font-size: 0.85rem;
+    color: #999;
+}
+
+.main-nav .nav-link-disabled {
+    color: #999;
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+    .main-nav {
+        gap: 1rem;
+        justify-content: center;
+        width: 100%;
     }
 
-    .nav-item:last-of-type {
-        padding-bottom: 1rem;
+    .main-nav ::deep a {
+        font-size: 0.85rem;
     }
 
-    .nav-item ::deep a {
-        color: #d7d7d7;
-        border-radius: 4px;
-        height: 3rem;
-        display: flex;
-        align-items: center;
-        line-height: 3rem;
-    }
-
-.nav-item ::deep a.active {
-    background-color: rgba(255,255,255,0.25);
-    color: white;
-}
-
-.nav-item ::deep a:hover {
-    background-color: rgba(255,255,255,0.1);
-    color: white;
-}
-
-@media (min-width: 641px) {
-    .navbar-toggler {
-        display: none;
-    }
-
-    .collapse {
-        /* Never collapse the sidebar for wide screens */
-        display: block;
-    }
-    
-    .nav-scrollable {
-        /* Allow sidebar to scroll for tall menus */
-        height: calc(100vh - 3.5rem);
-        overflow-y: auto;
+    .main-nav .admin-link,
+    .main-nav .nav-link {
+        margin-left: 0.5rem;
+        padding-left: 0.5rem;
     }
 }

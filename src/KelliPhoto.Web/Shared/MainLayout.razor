@@ -1,19 +1,37 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
 
-<PageTitle>KelliPhoto.Web</PageTitle>
+<PageTitle>Kelli Thompson Photography</PageTitle>
 
 <div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
-
-    <main>
-        <div class="top-row px-4">
-            <a href="https://docs.microsoft.com/aspnet/" target="_blank">About</a>
+    <header class="site-header">
+        <div class="header-container">
+            <a href="/" class="logo">
+                <img src="/api/images/webasset/logo.png" 
+                     alt="Kelli Thompson Photography" 
+                     class="logo-image"
+                     draggable="false"
+                     oncontextmenu="return false;" />
+            </a>
+            <NavMenu />
         </div>
+    </header>
 
-        <article class="content px-4">
+    <main class="main-content">
+        <article class="content">
             @Body
         </article>
     </main>
+
+    <footer class="site-footer">
+        <nav class="footer-nav">
+            <NavLink href="/" Match="NavLinkMatch.All">Home</NavLink>
+            <NavFolderLink FolderName="Fine Art">Fine Art</NavFolderLink>
+            <NavFolderLink FolderName="SCA Galleries - Esmeralda of the Lakes">SCA Galleries</NavFolderLink>
+            <NavFolderLink FolderName="Wedding and Engagement Photographs">Weddings/Engagements</NavFolderLink>
+            <NavFolderLink FolderName="Events">Events</NavFolderLink>
+            <NavLink href="/about">About</NavLink>
+            <NavLink href="/contact">Contact</NavLink>
+        </nav>
+        <div class="copyright">© Kelli Thompson</div>
+    </footer>
 </div>

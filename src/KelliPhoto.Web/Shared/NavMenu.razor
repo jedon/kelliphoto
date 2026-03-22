@@ -1,38 +1,18 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="/gallery">Kelli Photo</a>
-        <button title="Navigation menu" class="navbar-toggler" @onclick="ToggleNavMenu">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-    </div>
-</div>
-
-<div class="@NavMenuCssClass nav-scrollable" @onclick="ToggleNavMenu">
-    <nav class="flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="/gallery" Match="NavLinkMatch.All">
-                <span class="oi oi-image" aria-hidden="true"></span> Gallery
-            </NavLink>
-        </div>
-        <AuthorizeView>
-            <Authorized>
-                <div class="nav-item px-3">
-                    <NavLink class="nav-link" href="/admin">
-                        <span class="oi oi-cog" aria-hidden="true"></span> Admin
-                    </NavLink>
-                </div>
-            </Authorized>
-        </AuthorizeView>
-    </nav>
-</div>
-
-@code {
-    private bool collapseNavMenu = true;
-
-    private string? NavMenuCssClass => collapseNavMenu ? "collapse" : null;
-
-    private void ToggleNavMenu()
-    {
-        collapseNavMenu = !collapseNavMenu;
-    }
-}
+﻿<nav class="main-nav">
+    <NavLink href="/" Match="NavLinkMatch.All">Home</NavLink>
+    <NavFolderLink FolderName="Fine Art">Fine Art</NavFolderLink>
+    <NavFolderLink FolderName="SCA Galleries - Esmeralda of the Lakes">SCA Galleries</NavFolderLink>
+    <NavFolderLink FolderName="Wedding and Engagement Photographs">Weddings/Engagements</NavFolderLink>
+    <NavFolderLink FolderName="Events">Events</NavFolderLink>
+    <NavLink href="/about">About</NavLink>
+    <NavLink href="/contact">Contact</NavLink>
+    <AuthorizeView>
+        <Authorized>
+            <NavLink href="/admin" class="admin-link">Admin</NavLink>
+            <a href="/Identity/Account/Logout" class="nav-link">Logout</a>
+        </Authorized>
+        <NotAuthorized>
+            <NavLink href="/Identity/Account/Login" class="nav-link">Login</NavLink>
+        </NotAuthorized>
+    </AuthorizeView>
+</nav>

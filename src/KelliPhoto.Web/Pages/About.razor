@@ -1,0 +1,61 @@
+@page "/about"
+
+<PageTitle>About - Kelli Thompson Photography</PageTitle>
+
+<div class="about-page">
+    <h1>About</h1>
+    <div class="about-content">
+        <div class="portrait-container">
+            <img src="/api/images/webasset/kelliphoto_portrait.jpg" 
+                 alt="Kelli Thompson" 
+                 class="portrait-image"
+                 draggable="false"
+                 oncontextmenu="return false;" />
+        </div>
+        <div class="about-text">
+            <p>Kelli Thompson is an award-winning photographer who specializes in fine art photography and photojournalism. She travels extensively, having recently visited South Africa, Czech Republic, Poland, France, Spain, Italy, and Scotland. She has been a team photographer for the USA teams competing at international steel fighting competitions including Battle of the Nations and International Medieval Combat Federation.</p>
+            
+            <p>Kelli's photographs have been published in numerous magazines, periodicals, and websites, and juried into the 2021 Wild and Scenic Film Festival art show. Her work has appeared on the NBC Nightly News and Today Show.</p>
+            
+            <p>She currently resides in Mathews County, Virginia.</p>
+            
+            <p class="copyright">Photograph © Kelli Thompson</p>
+        </div>
+    </div>
+</div>
+
+<style>
+    .about-content {
+        display: flex;
+        flex-direction: column;
+        gap: 2rem;
+        align-items: center;
+    }
+
+    .portrait-container {
+        text-align: center;
+    }
+
+    .portrait-image {
+        max-width: 100%;
+        height: auto;
+        max-height: 500px;
+        border-radius: 8px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .about-text {
+        flex: 1;
+    }
+
+    @@media (min-width: 768px) {
+        .about-content {
+            flex-direction: row;
+            align-items: flex-start;
+        }
+
+        .portrait-container {
+            flex: 0 0 300px;
+        }
+    }
+</style>

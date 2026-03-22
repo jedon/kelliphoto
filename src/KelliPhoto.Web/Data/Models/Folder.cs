@@ -25,5 +25,15 @@ public class Folder
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
+    public bool IsVisible { get; set; } = true;
+
+    [MaxLength(2000)]
+    public string? Description { get; set; }
+
+    public int? ThumbnailPhotoId { get; set; }
+
+    [ForeignKey(nameof(ThumbnailPhotoId))]
+    public Photo? ThumbnailPhoto { get; set; }
+
     public List<Photo> Photos { get; set; } = new();
 }

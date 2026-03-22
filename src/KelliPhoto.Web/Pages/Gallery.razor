@@ -1,18 +1,60 @@
+@page "/"
 @page "/gallery"
 @page "/gallery/{FolderId:int}"
 
-<PageTitle>Gallery - Kelli Photo</PageTitle>
+@inject ILogger<Gallery> Logger
+@inject IFolderService FolderService
 
-<div class="container-fluid mt-4">
-    <FolderBrowser FolderId="FolderId" />
+<PageTitle>Gallery - Kelli Thompson Photography</PageTitle>
+
+<div class="gallery-page">
+    <FolderBrowser FolderId="DisplayFolderId" />
     
-    @if (FolderId.HasValue)
+    @if (DisplayFolderId.HasValue)
     {
-        <hr />
-        <PhotoGrid FolderId="FolderId.Value" />
+        <PhotoGrid FolderId="DisplayFolderId.Value" />
     }
 </div>
 
 @code {
     [Parameter] public int? FolderId { get; set; }
+
+    private int? DisplayFolderId { get; set; }
+    private int? _lastProcessedFolderId = null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("Gallery.OnInitialized: FolderId={FolderId}", FolderId);
+        await LoadDisplayFolderAsync();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        // Only reload if FolderId actually changed
+        if (_lastProcessedFolderId == FolderId)
+        {
+            Logger.LogDebug("Gallery.OnParametersSet: FolderId unchanged ({FolderId}), skipping reload", FolderId);
+            return;
+        }
+
+        Logger.LogInformation("Gallery.OnParametersSet: FolderId changed from {OldFolderId} to {NewFolderId}", 
+            _lastProcessedFolderId, FolderId);
+        await LoadDisplayFolderAsync();
+    }
+
+    private async Task LoadDisplayFolderAsync()
+    {
+        _lastProcessedFolderId = FolderId;
+        
+        if (FolderId.HasValue)
+        {
+            DisplayFolderId = FolderId;
+        }
+        else
+        {
+            // If no folder ID specified, load "Home Page Highlights" folder
+            var homePageHighlights = await FolderService.GetFolderByNameAsync("Home Page Highlights");
+            DisplayFolderId = homePageHighlights?.Id;
+        }
+    }
 }

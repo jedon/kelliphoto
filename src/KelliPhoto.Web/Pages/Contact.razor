@@ -1,0 +1,128 @@
+@page "/contact"
+@using KelliPhoto.Web.Models
+@using System.ComponentModel.DataAnnotations
+@inject HttpClient Http
+@inject NavigationManager Navigation
+@inject ILogger<Contact> Logger
+
+<PageTitle>Contact - Kelli Thompson Photography</PageTitle>
+
+<div class="contact-page">
+    <h1>Contact</h1>
+    <p class="contact-intro">We'd love to hear from you! Send us a message and we'll respond as soon as possible.</p>
+
+    <EditForm Model="@contactForm" OnValidSubmit="@HandleSubmit" class="contact-form">
+        <DataAnnotationsValidator />
+        
+        <div class="form-group">
+            <label for="name">Name *</label>
+            <InputText id="name" @bind-Value="contactForm.Name" class="form-control" />
+            <ValidationMessage For="@(() => contactForm.Name)" />
+        </div>
+
+        <div class="form-group">
+            <label for="email">Email *</label>
+            <InputText id="email" type="email" @bind-Value="contactForm.Email" class="form-control" />
+            <ValidationMessage For="@(() => contactForm.Email)" />
+        </div>
+
+        <div class="form-group">
+            <label for="subject">Subject *</label>
+            <InputText id="subject" @bind-Value="contactForm.Subject" class="form-control" />
+            <ValidationMessage For="@(() => contactForm.Subject)" />
+        </div>
+
+        <div class="form-group">
+            <label for="message">Message *</label>
+            <InputTextArea id="message" @bind-Value="contactForm.Message" class="form-control" rows="6" />
+            <ValidationMessage For="@(() => contactForm.Message)" />
+        </div>
+
+        @* Honeypot field - hidden from users but bots will fill it *@
+        <div style="position: absolute; left: -9999px; opacity: 0; pointer-events: none;" aria-hidden="true">
+            <label for="website">Website</label>
+            <input type="text" id="website" name="website" tabindex="-1" autocomplete="off" @bind="contactForm.Website" />
+        </div>
+
+        @if (!string.IsNullOrEmpty(statusMessage))
+        {
+            <div class="alert @(isSuccess ? "alert-success" : "alert-error")">
+                @statusMessage
+            </div>
+        }
+
+        <button type="submit" class="btn btn-primary" disabled="@isSubmitting">
+            @if (isSubmitting)
+            {
+                <text>Sending...</text>
+            }
+            else
+            {
+                <text>Send Message</text>
+            }
+        </button>
+    </EditForm>
+</div>
+
+@code {
+    private ContactFormModel contactForm = new();
+    private string statusMessage = string.Empty;
+    private bool isSuccess = false;
+    private bool isSubmitting = false;
+
+    private async Task HandleSubmit()
+    {
+        isSubmitting = true;
+        statusMessage = string.Empty;
+
+        try
+        {
+            var baseUri = Navigation.BaseUri.TrimEnd('/');
+            var url = $"{baseUri}/api/contact";
+            var response = await Http.PostAsJsonAsync(url, contactForm);
+
+            if (response.IsSuccessStatusCode)
+            {
+                var result = await response.Content.ReadFromJsonAsync<ContactResponse>();
+                if (result?.Success == true)
+                {
+                    statusMessage = result.Message ?? "Thank you for your message! We'll get back to you soon.";
+                    isSuccess = true;
+                    contactForm = new ContactFormModel(); // Reset form
+                    
+                    // Clear success message after 5 seconds
+                    await Task.Delay(5000);
+                    statusMessage = string.Empty;
+                    StateHasChanged();
+                }
+                else
+                {
+                    statusMessage = result?.Message ?? "There was an error sending your message. Please try again.";
+                    isSuccess = false;
+                }
+            }
+            else
+            {
+                var errorResult = await response.Content.ReadFromJsonAsync<ContactResponse>();
+                statusMessage = errorResult?.Message ?? "There was an error sending your message. Please try again.";
+                isSuccess = false;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error submitting contact form");
+            statusMessage = "An unexpected error occurred. Please try again later.";
+            isSuccess = false;
+        }
+        finally
+        {
+            isSubmitting = false;
+        }
+    }
+
+    private class ContactResponse
+    {
+        public bool Success { get; set; }
+        public string? Message { get; set; }
+    }
+}

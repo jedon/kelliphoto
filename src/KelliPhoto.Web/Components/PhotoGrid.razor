@@ -1,23 +1,28 @@
 @using KelliPhoto.Web.Data.Models
+@using KelliPhoto.Web.Models
+@using Microsoft.JSInterop
 @inject IPhotoService PhotoService
+@inject IScanProgressService ScanProgressService
 @inject NavigationManager Navigation
+@inject ILogger<PhotoGrid> Logger
+@inject IJSRuntime JSRuntime
+@implements IAsyncDisposable
 
-<div class="photo-grid">
+<div class="photo-grid-container">
     @if (Photos.Any())
     {
-        <div class="row">
+        <div class="photo-masonry">
             @foreach (var photo in Photos)
             {
-                <div class="col-md-3 col-sm-4 col-6 mb-3">
-                    <div class="card photo-card" @onclick="() => ViewPhoto(photo.Id)" style="cursor: pointer;">
-                        <img src="/api/images/thumbnail/@photo.Id?size=300" 
+                <div class="photo-item" @onclick="() => ViewPhoto(photo.Id)">
+                    <div class="photo-placeholder" style="@GetPlaceholderAspectStyle(photo)">
+                        <img src="/api/images/thumbnail/@photo.Id?size=400" 
                              alt="@photo.Filename" 
-                             class="card-img-top"
                              loading="lazy"
-                             onerror="this.src='/placeholder.jpg';" />
-                        <div class="card-body p-2">
-                            <p class="card-text small text-truncate mb-0">@photo.Filename</p>
-                        </div>
+                             draggable="false"
+                             oncontextmenu="return false;"
+                             onload="this.parentElement.classList.add('loaded'); this.parentElement.style.removeProperty('aspect-ratio');"
+                             onerror="this.onerror=null; this.parentElement.classList.add('loaded','missing'); console.error('Failed to load thumbnail for photo', @photo.Id);" />
                     </div>
                 </div>
             }
@@ -25,28 +30,39 @@
 
         @if (HasMore)
         {
-            <div class="text-center mt-4">
-                <button class="btn btn-primary" @onclick="LoadMore" disabled="@isLoading">
-                    @if (isLoading)
-                    {
-                        <span class="spinner-border spinner-border-sm me-2"></span>
-                    }
-                    Load More
-                </button>
-            </div>
+            <div class="scroll-trigger" @ref="scrollTrigger"></div>
         }
     }
-    else if (!isLoading)
+    else if (isScanning)
     {
-        <p class="text-center text-muted">No photos in this folder.</p>
+        <div class="scanning-state">
+            <div class="spinner"></div>
+            <p class="scanning-message">
+                @if (scanProgress != null)
+                {
+                    <text>Scanning: @scanProgress.ProcessedPhotos / @scanProgress.TotalPhotos photos (@((int)scanProgress.PercentComplete)%)</text>
+                }
+                else
+                {
+                    <text>Scanning folder...</text>
+                }
+            </p>
+        </div>
+    }
+    else if (isLoading || !hasLoadedOnce)
+    {
+        <div class="loading-state">
+            <div class="spinner"></div>
+        </div>
     }
     else
     {
-        <div class="text-center">
-            <div class="spinner-border" role="status">
-                <span class="visually-hidden">Loading...</span>
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="error-message">
+                <strong>Error:</strong> @errorMessage
             </div>
-        </div>
+        }
     }
 </div>
 
@@ -58,50 +74,309 @@
     private const int PageSize = 50;
     private bool HasMore { get; set; } = true;
     private bool isLoading = false;
+    private bool hasLoadedOnce = false; // Track if we've completed at least one load attempt
+    private bool isScanning = false;
+    private string? errorMessage = null;
+    private ScanProgressInfo? scanProgress = null;
+    private System.Threading.Timer? _progressTimer;
+    private System.Threading.Timer? _refreshTimer;
+    private int? _lastLoadedFolderId = null;
+    private ElementReference scrollTrigger;
+    private Microsoft.JSInterop.IJSObjectReference? _jsModule;
+    private DotNetObjectReference<PhotoGrid>? _objRef;
 
     protected override async Task OnInitializedAsync()
     {
+        Logger.LogInformation("PhotoGrid.OnInitializedAsync: FolderId={FolderId}", FolderId);
+        _lastLoadedFolderId = FolderId;
+        // Clear photos list to prevent duplicates from previous state
+        Photos = new();
+        currentPage = 0;
+        HasMore = true;
+        hasLoadedOnce = false; // Reset load state for new folder
+        
+        // Load photos immediately without waiting for scan check
         await LoadPhotosAsync();
+        await CheckScanStatusAsync();
+        StateHasChanged(); // Render immediately with photos
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        await base.OnAfterRenderAsync(firstRender);
+        // JS interop is invalid during static prerender (ServerPrerendered first pass); only runs after circuit attaches.
+        if (HasMore && Photos.Any())
+            await TryInitializeScrollObserverAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        // Only reload if FolderId actually changed
+        if (_lastLoadedFolderId == FolderId)
+        {
+            Logger.LogDebug("PhotoGrid.OnParametersSetAsync: FolderId unchanged ({FolderId}), skipping reload", FolderId);
+            return;
+        }
+
+        Logger.LogInformation("PhotoGrid.OnParametersSetAsync: FolderId changed from {OldFolderId} to {NewFolderId}", 
+            _lastLoadedFolderId, FolderId);
+        
+        _lastLoadedFolderId = FolderId;
         Photos = new();
         currentPage = 0;
         HasMore = true;
+        errorMessage = null;
+        scanProgress = null;
+        isScanning = false;
+        hasLoadedOnce = false; // Reset load state for new folder
+        
+        // Stop previous timers
+        _progressTimer?.Dispose();
+        _refreshTimer?.Dispose();
+        
+        // Load photos immediately without waiting for scan check
         await LoadPhotosAsync();
+        await CheckScanStatusAsync();
+        StateHasChanged(); // Render immediately with photos
     }
 
     private async Task LoadPhotosAsync()
     {
-        if (isLoading) return;
+        if (isLoading)
+        {
+            Logger.LogWarning("LoadPhotosAsync called while already loading for FolderId={FolderId}", FolderId);
+            return;
+        }
+
+        Logger.LogInformation("PhotoGrid.LoadPhotosAsync: Starting load for FolderId={FolderId}, Page={Page}, PageSize={PageSize}", 
+            FolderId, currentPage, PageSize);
 
         isLoading = true;
+        errorMessage = null;
         try
         {
             var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize);
             
+            Logger.LogInformation("PhotoGrid.LoadPhotosAsync: Received {Count} photos from service for FolderId={FolderId}", 
+                photos?.Count ?? 0, FolderId);
+            
+            if (photos == null)
+            {
+                Logger.LogWarning("PhotoGrid.LoadPhotosAsync: PhotoService returned null for FolderId={FolderId}", FolderId);
+                photos = new List<Photo>();
+            }
+            
             if (photos.Count < PageSize)
             {
                 HasMore = false;
+                Logger.LogInformation("PhotoGrid.LoadPhotosAsync: No more photos available (returned {Count} < {PageSize})", 
+                    photos.Count, PageSize);
             }
 
-            Photos.AddRange(photos);
+            // Use DistinctBy to prevent duplicates - more efficient than checking each one
+            var uniquePhotos = photos.DistinctBy(p => p.Id).Where(p => !Photos.Any(existing => existing.Id == p.Id)).ToList();
+            Photos.AddRange(uniquePhotos);
             currentPage++;
+            
+            Logger.LogDebug("Added {NewCount} unique photos (filtered {FilteredCount} duplicates)", uniquePhotos.Count, photos.Count - uniquePhotos.Count);
+            
+            Logger.LogInformation("PhotoGrid.LoadPhotosAsync: Successfully loaded. Total photos in grid: {TotalCount}, Current page: {Page}", 
+                Photos.Count, currentPage);
+            
+            if (photos.Count > 0)
+            {
+                Logger.LogInformation("PhotoGrid.LoadPhotosAsync: First photo in batch - Id={Id}, Filename={Filename}", 
+                    photos[0].Id, photos[0].Filename);
+            }
+            
+            // Next OnAfterRenderAsync will attach/update the scroll observer when HasMore && Photos.Any()
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            // Log error but don't crash - just show empty state
+            errorMessage = $"Error loading photos: {ex.Message}";
+            Logger.LogError(ex, "PhotoGrid.LoadPhotosAsync: Error loading photos for FolderId={FolderId}: {Message}", 
+                FolderId, ex.Message);
+            HasMore = false;
         }
         finally
         {
             isLoading = false;
+            hasLoadedOnce = true; // Mark that we've completed at least one load attempt
+            Logger.LogInformation("PhotoGrid.LoadPhotosAsync: Completed for FolderId={FolderId}, Final count: {Count}", 
+                FolderId, Photos.Count);
         }
     }
 
-    private async Task LoadMore()
+    private async Task TryInitializeScrollObserverAsync()
     {
-        await LoadPhotosAsync();
+        if (!HasMore)
+            return;
+
+        try
+        {
+            if (_jsModule != null)
+            {
+                try
+                {
+                    await _jsModule.InvokeVoidAsync("disposeScrollObserver");
+                }
+                catch
+                {
+                    // ignore
+                }
+            }
+
+            _objRef?.Dispose();
+            _objRef = DotNetObjectReference.Create(this);
+
+            if (_jsModule == null)
+                _jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/photoGrid.js");
+
+            await Task.Delay(50);
+            await _jsModule.InvokeVoidAsync("initializeScrollObserver", scrollTrigger, _objRef);
+        }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("JavaScript interop", StringComparison.OrdinalIgnoreCase)
+                                                  || ex.Message.Contains("statically rendered", StringComparison.OrdinalIgnoreCase)
+                                                  || ex.Message.Contains("prerender", StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.LogDebug(ex, "Scroll observer skipped until interactive render");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing scroll observer");
+        }
+    }
+
+    [JSInvokable]
+    public async Task LoadMoreOnScroll()
+    {
+        if (HasMore && !isLoading)
+        {
+            await LoadPhotosAsync();
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private void ViewPhoto(int photoId)
     {
         Navigation.NavigateTo($"/photo/{photoId}");
+    }
+
+    /// <summary>Inline aspect-ratio when DB has dimensions so masonry stays stable for broken thumbnails.</summary>
+    private static string? GetPlaceholderAspectStyle(Photo photo)
+    {
+        if (photo.Width is > 0 && photo.Height is > 0)
+            return $"aspect-ratio: {photo.Width} / {photo.Height};";
+        return null;
+    }
+
+    private async Task CheckScanStatusAsync()
+    {
+        try
+        {
+            var p = ScanProgressService.GetProgress(FolderId);
+            if (p == null)
+            {
+                isScanning = false;
+                scanProgress = null;
+                _progressTimer?.Dispose();
+                _refreshTimer?.Dispose();
+            }
+            else
+            {
+                scanProgress = new ScanProgressInfo
+                {
+                    FolderId = p.FolderId,
+                    TotalPhotos = p.TotalPhotos,
+                    ProcessedPhotos = p.ProcessedPhotos,
+                    PercentComplete = p.PercentComplete,
+                    IsComplete = p.IsComplete,
+                    ElapsedSeconds = p.Elapsed.TotalSeconds
+                };
+                isScanning = !p.IsComplete;
+
+                if (isScanning)
+                {
+                    _progressTimer?.Dispose();
+                    _progressTimer = new System.Threading.Timer(_ =>
+                    {
+                        _ = InvokeAsync(async () => await CheckScanStatusAsync());
+                    }, null, TimeSpan.FromSeconds(2), TimeSpan.FromSeconds(2));
+
+                    _refreshTimer?.Dispose();
+                    _refreshTimer = new System.Threading.Timer(_ =>
+                    {
+                        _ = InvokeAsync(async () => await RefreshPhotosAsync());
+                    }, null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+                }
+                else if (p.IsComplete)
+                {
+                    await RefreshPhotosAsync();
+                    _progressTimer?.Dispose();
+                    _refreshTimer?.Dispose();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Error checking scan status for folder {FolderId} (non-critical)", FolderId);
+            isScanning = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RefreshPhotosAsync()
+    {
+        try
+        {
+            var previousCount = Photos.Count;
+            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize);
+            
+            if (photos != null && photos.Count > previousCount)
+            {
+                // Merge new photos instead of replacing - prevent duplicates
+                var newPhotos = photos.Where(p => !Photos.Any(existing => existing.Id == p.Id)).ToList();
+                if (newPhotos.Any())
+                {
+                    Photos.InsertRange(0, newPhotos);
+                    currentPage = (int)Math.Ceiling((double)Photos.Count / PageSize);
+                    HasMore = photos.Count >= PageSize || Photos.Count > photos.Count;
+                    await InvokeAsync(StateHasChanged);
+                    Logger.LogInformation("Refreshed photos: Added {NewCount} new photos (total now {TotalCount}, was {PreviousCount})", newPhotos.Count, Photos.Count, previousCount);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error refreshing photos for folder {FolderId}", FolderId);
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _progressTimer?.Dispose();
+        _refreshTimer?.Dispose();
+        
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("disposeScrollObserver");
+                await _jsModule.DisposeAsync();
+            }
+            catch (InvalidOperationException)
+            {
+                // Component may be disposing during prerender/shutdown
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error disposing scroll observer");
+            }
+        }
+        
+        _objRef?.Dispose();
     }
 }
