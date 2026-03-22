@@ -42,4 +42,4 @@ These keys are documented at a high level; use environment-specific files or sec
 
 ## Docker
 
-Production-style runs use the files under `docker/` (multi-stage build, Compose stack, nginx). See [docker/README.md](../docker/README.md) for service ports, volumes, and migration commands inside the container.
+Production-style runs use the files under `docker/` (multi-stage build, Compose stack, nginx). See [docs/docker/README.md](docker/README.md) for service ports, volumes, and migration commands inside the container.

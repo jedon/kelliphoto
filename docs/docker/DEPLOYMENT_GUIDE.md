@@ -15,9 +15,9 @@ The Kelli Photo PostgreSQL is only accessible internally on port 15432. The web 
 ### Option A: Run the setup script (no PostgreSQL forwarding)
 
 ```bash
-cd docker
-chmod +x iptables-setup.sh
-sudo ./iptables-setup.sh
+cd /path/to/kelli.photo   # repository root
+chmod +x scripts/docker/iptables-setup.sh
+sudo ./scripts/docker/iptables-setup.sh
 ```
 
 This script will skip PostgreSQL port forwarding to avoid conflicts.
@@ -100,9 +100,9 @@ sudo systemctl reload nginx
 ### Option C: Use the setup script
 
 ```bash
-cd docker/nginx
-chmod +x nginx-setup.sh
-sudo ./nginx-setup.sh
+cd /path/to/kelli.photo   # repository root
+chmod +x scripts/docker/nginx/nginx-setup.sh
+sudo ./scripts/docker/nginx/nginx-setup.sh
 ```
 
 ## Step 5: Verify Deployment
@@ -167,7 +167,7 @@ sudo tail -f /var/log/nginx/kelliphoto-error.log
 
 ## Configuration Files
 
-- **iptables**: `docker/iptables-setup.sh`
+- **iptables**: `scripts/docker/iptables-setup.sh`
 - **Nginx HTTPS**: `docker/nginx/kelliphoto.conf`
 - **Nginx HTTP**: `docker/nginx/kelliphoto-http-only.conf`
 - **Docker Compose**: `docker/docker-compose.yml`
