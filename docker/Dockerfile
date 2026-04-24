@@ -22,6 +22,10 @@ EXPOSE 80
 EXPOSE 443
 
 # Run EF migrations from SDK (dev/CI), not in this runtime image.
+# Required by providers that load Kerberos/GSSAPI runtime libraries.
+RUN apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends libgssapi-krb5-2 \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --from=publish /app/publish .
 
