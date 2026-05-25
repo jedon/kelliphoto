@@ -47,9 +47,40 @@
     letter-spacing: 0.05em;
 }
 
-.folder-card-edit {
-    border-color: #D4AF37;
-    box-shadow: 0 0 0 1px rgba(212, 175, 55, 0.35);
+.folder-card-edit-btn {
+    position: absolute;
+    top: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid #D4AF37;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.8);
+    color: #D4AF37;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s;
+}
+
+.folder-card:hover .folder-card-edit-btn,
+.folder-card-edit-btn:focus {
+    opacity: 1;
+}
+
+.folder-card-edit-btn:hover {
+    background: #D4AF37;
+    color: #111;
+}
+
+.folder-breadcrumb-edit {
+    margin-left: 0.5rem;
+    font-size: 0.75rem;
+    vertical-align: middle;
 }
 
 .folder-card-hidden {
@@ -59,17 +90,6 @@
 .folder-card-hidden .folder-thumbnail,
 .folder-card-hidden .folder-thumbnail-grid {
     filter: grayscale(40%);
-}
-
-.folder-edit-overlay {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    z-index: 2;
-    background: rgba(0, 0, 0, 0.75);
-    border: 1px solid #D4AF37;
-    border-radius: 4px;
-    padding: 0.35rem 0.5rem;
 }
 
 .folder-card {
@@ -168,19 +188,6 @@
     font-size: 0.9rem;
     text-align: center;
     word-break: break-word;
-}
-
-.folder-visibility-switch {
-    margin: 0;
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-}
-
-.folder-visibility-switch .form-check-label {
-    color: #D4AF37;
-    font-size: 0.75rem;
-    margin: 0;
 }
 
 .folder-hidden-badge {

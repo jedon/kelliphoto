@@ -22,6 +22,9 @@ public interface IFolderService
     Task<List<Folder>> GetTopLevelFoldersAsync(bool includeHidden = false);
     Task UpdateFolderVisibilityAsync(int folderId, bool isVisible);
     Task UpdateFolderDescriptionAsync(int folderId, string? description);
+    Task UpdateFolderSettingsAsync(int folderId, string name, int sortOrder, bool isVisible, string? description);
+    Task<IReadOnlyList<Photo>> GetPhotosInFolderForCoverPickerAsync(int folderId, int maxCount = 120);
+    Task<IReadOnlyList<Folder>> GetSiblingFoldersAsync(int folderId, bool includeHidden = true);
     Task<List<Folder>> GetAllFoldersAsync();
     Task<List<Folder>> GetBreadcrumbPathAsync(int folderId);
 }

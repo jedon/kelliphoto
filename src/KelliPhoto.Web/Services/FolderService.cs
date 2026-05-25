@@ -37,7 +37,7 @@ public class FolderService : IFolderService
             query = query.Where(f => f.IsVisible);
         }
         
-        return await query.OrderBy(f => f.Name).ToListAsync();
+        return await query.OrderBy(f => f.SortOrder).ThenBy(f => f.Name).ToListAsync();
     }
 
     public async Task<List<Folder>> GetTopLevelFoldersAsync(bool includeHidden = false)
@@ -70,7 +70,8 @@ public class FolderService : IFolderService
                        !f.Name.StartsWith(".") &&
                        f.Name.ToLower() != "home page highlights" &&
                        f.Name.ToLower() != "testfolder")
-            .OrderBy(f => f.Name)
+            .OrderBy(f => f.SortOrder)
+            .ThenBy(f => f.Name)
             .ToList();
     }
 
@@ -202,7 +203,7 @@ public class FolderService : IFolderService
             query = query.Where(f => f.IsVisible);
         }
         
-        var folders = await query.OrderBy(f => f.Name).ToListAsync();
+        var folders = await query.OrderBy(f => f.SortOrder).ThenBy(f => f.Name).ToListAsync();
         _logger.LogDebug("GetChildFoldersAsync: Found {Count} folders for parent {ParentId}", folders.Count, parentId);
         return folders;
     }
@@ -225,13 +226,19 @@ public class FolderService : IFolderService
                          && nameLower != "home page highlights" 
                          && !name.StartsWith(".");
             
+            var maxSort = await context.Folders
+                .Where(f => f.ParentId == parentId)
+                .Select(f => (int?)f.SortOrder)
+                .MaxAsync() ?? -1;
+
             folder = new Folder
             {
                 Path = relativePath, // Store relative path
                 Name = name,
                 ParentId = parentId,
                 CreatedAt = DateTime.UtcNow,
-                IsVisible = isVisible
+                IsVisible = isVisible,
+                SortOrder = maxSort + 1
             };
             context.Folders.Add(folder);
         }
@@ -442,7 +449,8 @@ public class FolderService : IFolderService
                         f.Name.ToLower() != "home page highlights" &&
                         f.Name.ToLower() != "testfolder")
             .Where(f => f.IsVisible)
-            .OrderBy(f => f.Name)
+            .OrderBy(f => f.SortOrder)
+            .ThenBy(f => f.Name)
             .ToListAsync();
 
         foreach (var child in childFolders)
@@ -547,13 +555,14 @@ public class FolderService : IFolderService
 
         var folderRows = await context.Folders
             .AsNoTracking()
-            .Select(f => new FolderRow(f.Id, f.ParentId, f.Name))
+            .Select(f => new FolderRow(f.Id, f.ParentId, f.Name, f.SortOrder))
             .ToListAsync();
 
         var descendantIds = GetDescendantFolderIds(folderRows, folderId);
         var orderedChildFolderIds = folderRows
-            .Where(f => descendantIds.Contains(f.Id))
-            .OrderBy(f => f.Name)
+            .Where(f => descendantIds.Contains(f.Id) && f.Id != folderId)
+            .OrderBy(f => f.SortOrder)
+            .ThenBy(f => f.Name)
             .Select(f => f.Id)
             .ToList();
 
@@ -601,7 +610,7 @@ public class FolderService : IFolderService
 
         var folderRows = await context.Folders
             .AsNoTracking()
-            .Select(f => new FolderRow(f.Id, f.ParentId, f.Name))
+            .Select(f => new FolderRow(f.Id, f.ParentId, f.Name, f.SortOrder))
             .ToListAsync();
 
         var descendants = GetDescendantFolderIds(folderRows, folderId);
@@ -646,7 +655,7 @@ public class FolderService : IFolderService
         return descendants;
     }
 
-    private sealed record FolderRow(int Id, int? ParentId, string Name);
+    private sealed record FolderRow(int Id, int? ParentId, string Name, int SortOrder);
 
     public async Task<IReadOnlyList<Photo>> GetFolderCoverPhotosAsync(int folderId)
     {
@@ -760,6 +769,68 @@ public class FolderService : IFolderService
         await context.SaveChangesAsync();
     }
 
+    public async Task<IReadOnlyList<Photo>> GetPhotosInFolderForCoverPickerAsync(int folderId, int maxCount = 120)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        return await context.Photos
+            .AsNoTracking()
+            .Where(p => p.FolderId == folderId)
+            .OrderBy(p => p.TakenAt ?? p.CreatedAt)
+            .ThenBy(p => p.Id)
+            .Take(maxCount)
+            .ToListAsync();
+    }
+
+    public async Task<IReadOnlyList<Folder>> GetSiblingFoldersAsync(int folderId, bool includeHidden = true)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var folder = await context.Folders.AsNoTracking().FirstOrDefaultAsync(f => f.Id == folderId);
+        if (folder == null)
+        {
+            return Array.Empty<Folder>();
+        }
+
+        var query = context.Folders.AsNoTracking().Where(f => f.ParentId == folder.ParentId);
+        if (!includeHidden)
+        {
+            query = query.Where(f => f.IsVisible);
+        }
+
+        return await query.OrderBy(f => f.SortOrder).ThenBy(f => f.Name).ToListAsync();
+    }
+
+    public async Task UpdateFolderSettingsAsync(int folderId, string name, int sortOrder, bool isVisible, string? description)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new ArgumentException("Folder name is required.", nameof(name));
+        }
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var folder = await context.Folders.FindAsync(folderId)
+            ?? throw new ArgumentException($"Folder with ID {folderId} not found", nameof(folderId));
+
+        var siblings = await context.Folders
+            .Where(f => f.ParentId == folder.ParentId && f.Id != folderId)
+            .OrderBy(f => f.SortOrder)
+            .ThenBy(f => f.Name)
+            .ToListAsync();
+
+        var targetIndex = Math.Clamp(sortOrder, 0, siblings.Count);
+        siblings.Insert(targetIndex, folder);
+
+        for (var i = 0; i < siblings.Count; i++)
+        {
+            siblings[i].SortOrder = i;
+        }
+
+        folder.Name = name.Trim();
+        folder.IsVisible = isVisible;
+        folder.Description = description;
+
+        await context.SaveChangesAsync();
+    }
+
     public async Task UpdateFolderVisibilityAsync(int folderId, bool isVisible)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
@@ -789,7 +860,8 @@ public class FolderService : IFolderService
         await using var context = await _contextFactory.CreateDbContextAsync();
         return await context.Folders
             .AsNoTracking()
-            .OrderBy(f => f.Name)
+            .OrderBy(f => f.SortOrder)
+            .ThenBy(f => f.Name)
             .ToListAsync();
     }
 }

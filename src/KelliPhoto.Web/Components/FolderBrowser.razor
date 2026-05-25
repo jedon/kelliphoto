@@ -6,21 +6,22 @@
 @inject ILogger<FolderBrowser> Logger
 
 @{
-    RenderFragment<Folder> FolderCard = folder => @<div class="card folder-card @(EditMode ? "folder-card-edit" : "") @(!folder.IsVisible ? "folder-card-hidden" : "")"
+    RenderFragment<Folder> FolderCard = folder => @<div class="card folder-card @(!folder.IsVisible ? "folder-card-hidden" : "")"
                                                       @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
-        @if (EditMode)
+        @if (IsAdmin)
         {
-            <div class="folder-edit-overlay" @onclick:stopPropagation="true">
-                <div class="form-check form-switch folder-visibility-switch">
-                    <input class="form-check-input" type="checkbox" checked="@folder.IsVisible"
-                           @onchange="(e) => ToggleFolderVisibility(folder, e.Value)" />
-                    <label class="form-check-label">Visible</label>
-                </div>
-            </div>
-            @if (!folder.IsVisible)
-            {
-                <span class="folder-hidden-badge">Hidden</span>
-            }
+            <button type="button"
+                    class="folder-card-edit-btn"
+                    title="Edit album"
+                    aria-label="Edit @folder.Name"
+                    @onclick:stopPropagation="true"
+                    @onclick="() => OpenEditDialog(folder.Id)">
+                <i class="bi bi-pencil"></i>
+            </button>
+        }
+        @if (!folder.IsVisible)
+        {
+            <span class="folder-hidden-badge">Hidden</span>
         }
         @{
             var thumbnails = FolderThumbnails.GetValueOrDefault(folder.Id) ?? Array.Empty<Photo>();
@@ -95,6 +96,14 @@
                 @if (showCurrentFolder)
                 {
                     <span class="breadcrumb-current">@CurrentFolder.Name</span>
+                    @if (IsAdmin && CurrentFolder != null)
+                    {
+                        <button type="button"
+                                class="btn btn-sm btn-outline-warning folder-breadcrumb-edit"
+                                @onclick="() => OpenEditDialog(CurrentFolder!.Id)">
+                            Edit album
+                        </button>
+                    }
                 }
             }
         </nav>
@@ -142,9 +151,15 @@
     }
 </div>
 
+<FolderEditDialog IsOpen="_editDialogOpen"
+                  FolderId="_editingFolderId"
+                  OnClose="CloseEditDialog"
+                  OnSaved="HandleFolderSaved" />
+
 @code {
     [Parameter] public int? FolderId { get; set; }
-    [Parameter] public bool EditMode { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
+    [Parameter] public EventCallback OnFoldersChanged { get; set; }
 
     private List<Folder> RootFolders { get; set; } = new();
     private List<Folder> ChildFolders { get; set; } = new();
@@ -155,30 +170,26 @@
     private string? errorMessage = null;
 
     private int? _lastLoadedFolderId;
-    private bool _lastEditMode;
+    private bool _editDialogOpen;
+    private int? _editingFolderId;
 
     protected override async Task OnInitializedAsync()
     {
         _lastLoadedFolderId = FolderId;
-        _lastEditMode = EditMode;
         await LoadFoldersAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        var folderChanged = _lastLoadedFolderId != FolderId;
-        var editModeChanged = _lastEditMode != EditMode;
-
-        if (!folderChanged && !editModeChanged)
+        if (_lastLoadedFolderId == FolderId)
         {
             Logger.LogDebug("FolderBrowser.OnParametersSet: FolderId unchanged ({FolderId}), skipping reload", FolderId);
             return;
         }
 
-        Logger.LogInformation("FolderBrowser.OnParametersSet: FolderId changed from {OldFolderId} to {NewFolderId}, EditMode={EditMode}",
-            _lastLoadedFolderId, FolderId, EditMode);
+        Logger.LogInformation("FolderBrowser.OnParametersSet: FolderId changed from {OldFolderId} to {NewFolderId}",
+            _lastLoadedFolderId, FolderId);
         _lastLoadedFolderId = FolderId;
-        _lastEditMode = EditMode;
         await LoadFoldersAsync();
     }
 
@@ -198,7 +209,7 @@
                 if (CurrentFolder != null)
                 {
                     // These are already sequential due to await
-                    ChildFolders = await FolderService.GetChildFoldersAsync(FolderId.Value, includeHidden: EditMode);
+                    ChildFolders = await FolderService.GetChildFoldersAsync(FolderId.Value, includeHidden: IsAdmin);
                     if (ChildFolders == null)
                     {
                         ChildFolders = new();
@@ -222,7 +233,7 @@
             else
             {
                 // Use GetTopLevelFoldersAsync to skip the kelli.photo root folder
-                RootFolders = await FolderService.GetTopLevelFoldersAsync(includeHidden: EditMode);
+                RootFolders = await FolderService.GetTopLevelFoldersAsync(includeHidden: IsAdmin);
                 Logger.LogInformation("FolderBrowser: Loaded {Count} root folders from database", RootFolders?.Count ?? 0);
                 
                 if (RootFolders == null)
@@ -498,21 +509,23 @@
         }
     }
 
-    private async Task ToggleFolderVisibility(Folder folder, object? value)
+    private void OpenEditDialog(int folderId)
     {
-        if (value is bool isVisible)
-        {
-            folder.IsVisible = isVisible;
-            try
-            {
-                await FolderService.UpdateFolderVisibilityAsync(folder.Id, isVisible);
-            }
-            catch (Exception ex)
-            {
-                Logger.LogError(ex, "Error updating folder visibility for {FolderId}", folder.Id);
-            }
-            await InvokeAsync(StateHasChanged);
-        }
+        _editingFolderId = folderId;
+        _editDialogOpen = true;
+    }
+
+    private Task CloseEditDialog()
+    {
+        _editDialogOpen = false;
+        _editingFolderId = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleFolderSaved()
+    {
+        await LoadFoldersAsync();
+        await OnFoldersChanged.InvokeAsync();
     }
 
 }

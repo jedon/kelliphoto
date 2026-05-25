@@ -1,0 +1,386 @@
+@using KelliPhoto.Web.Data.Models
+@using Microsoft.AspNetCore.Components.Forms
+@inject IFolderService FolderService
+@inject IPhotoService PhotoService
+@inject IPathService PathService
+@inject ILogger<FolderEditDialog> Logger
+
+@if (IsOpen && _folder != null)
+{
+    <div class="folder-edit-backdrop" @onclick="Close">
+        <div class="folder-edit-dialog" role="dialog" aria-modal="true" aria-labelledby="folder-edit-title" @onclick:stopPropagation="true">
+            <header class="folder-edit-header">
+                <h5 id="folder-edit-title" class="folder-edit-title">Edit album</h5>
+                <button type="button" class="folder-edit-close" aria-label="Close" @onclick="Close">&times;</button>
+            </header>
+
+            <div class="folder-edit-body">
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger py-2">@_errorMessage</div>
+                }
+
+                <div class="mb-3">
+                    <label class="form-label" for="folder-edit-name">Name</label>
+                    <input id="folder-edit-name" class="form-control" @bind="_name" maxlength="500" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="folder-edit-position">Position in parent folder</label>
+                    <select id="folder-edit-position" class="form-select" @bind="_positionIndex">
+                        @for (var i = 0; i < _positionOptions; i++)
+                        {
+                            <option value="@i">@(i + 1)@(_positionOptions == 1 ? " (only)" : "")</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="folder-edit-visible" @bind="_isVisible" />
+                        <label class="form-check-label" for="folder-edit-visible">Visible in gallery</label>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label" for="folder-edit-description">Description</label>
+                    <textarea id="folder-edit-description" class="form-control" rows="2" @bind="_description"></textarea>
+                </div>
+
+                <hr class="folder-edit-divider" />
+
+                <h6 class="folder-edit-section-title">Thumbnail@( _hasChildAlbums ? "s (up to 4)" : "")</h6>
+                <p class="folder-edit-hint text-muted small">
+                    @if (_hasChildAlbums)
+                    {
+                        <text>Album folders can use up to four covers. Pick from this folder, subfolders, or upload.</text>
+                    }
+                    else
+                    {
+                        <text>Choose one image from this folder or upload a new cover.</text>
+                    }
+                </p>
+
+                @if (_savedCovers.Any())
+                {
+                    <div class="folder-edit-cover-preview">
+                        @foreach (var cover in _savedCovers)
+                        {
+                            <img src="/api/images/thumbnail/@cover.Id?size=120" alt="Cover" />
+                        }
+                    </div>
+                }
+
+                <div class="folder-edit-cover-tabs" role="tablist">
+                    <button type="button"
+                            class="folder-edit-tab @(_coverSource == CoverSource.Folder ? "active" : "")"
+                            @onclick="() => SetCoverSource(CoverSource.Folder)">
+                        This folder
+                    </button>
+                    @if (_subfolderPhotos.Any())
+                    {
+                        <button type="button"
+                                class="folder-edit-tab @(_coverSource == CoverSource.Subfolders ? "active" : "")"
+                                @onclick="() => SetCoverSource(CoverSource.Subfolders)">
+                            Subfolders
+                        </button>
+                    }
+                    <button type="button"
+                            class="folder-edit-tab @(_coverSource == CoverSource.Upload ? "active" : "")"
+                            @onclick="() => SetCoverSource(CoverSource.Upload)">
+                        Upload
+                    </button>
+                </div>
+
+                @if (_coverSource == CoverSource.Upload)
+                {
+                    <div class="folder-edit-upload mt-2">
+                        <InputFile class="form-control" OnChange="OnUploadSelected" accept="image/*" />
+                        @if (_pendingUpload != null)
+                        {
+                            <p class="small text-muted mt-1 mb-0">Selected: @_pendingUpload.Name</p>
+                        }
+                    </div>
+                }
+                else if (_isLoadingPhotos)
+                {
+                    <p class="text-muted small mt-2">Loading photos…</p>
+                }
+                else
+                {
+                    var pickerPhotos = _coverSource == CoverSource.Folder ? _folderPhotos : _subfolderPhotos;
+                    @if (pickerPhotos.Any())
+                    {
+                        <p class="small text-muted mt-2 mb-1">@_selectedCoverIds.Count / @_maxCovers selected (click to toggle)</p>
+                        <div class="folder-edit-photo-grid">
+                            @foreach (var photo in pickerPhotos)
+                            {
+                                var selected = _selectedCoverIds.Contains(photo.Id);
+                                <button type="button"
+                                        class="folder-edit-photo-btn @(selected ? "selected" : "")"
+                                        title="@photo.Filename"
+                                        @onclick="() => ToggleCover(photo.Id)">
+                                    <img src="/api/images/thumbnail/@photo.Id?size=150" alt="" loading="lazy" />
+                                    @if (_coverSource == CoverSource.Subfolders && photo.Folder != null)
+                                    {
+                                        <span class="folder-edit-photo-label">@photo.Folder.Name</span>
+                                    }
+                                </button>
+                            }
+                        </div>
+                    }
+                    else
+                    {
+                        <p class="text-muted small mt-2">No photos here. Use Upload or add images to the folder first.</p>
+                    }
+                }
+
+                @if (!string.IsNullOrEmpty(_coverMessage))
+                {
+                    <p class="small mt-2 @(_coverMessage.StartsWith("Error") ? "text-danger" : "text-success")">@_coverMessage</p>
+                }
+            </div>
+
+            <footer class="folder-edit-footer">
+                <button type="button" class="btn btn-outline-secondary" @onclick="ClearCovers" disabled="@_isSaving">Use automatic</button>
+                <button type="button" class="btn btn-outline-secondary" @onclick="Close" disabled="@_isSaving">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@_isSaving">
+                    @(_isSaving ? "Saving…" : "Save")
+                </button>
+            </footer>
+        </div>
+    </div>
+}
+
+@code {
+    private enum CoverSource { Folder, Subfolders, Upload }
+
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public int? FolderId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private Folder? _folder;
+    private string _name = "";
+    private string? _description;
+    private bool _isVisible = true;
+    private int _positionIndex;
+    private int _positionOptions = 1;
+    private bool _hasChildAlbums;
+    private int _maxCovers = 1;
+
+    private List<Photo> _folderPhotos = new();
+    private List<Photo> _subfolderPhotos = new();
+    private List<Photo> _savedCovers = new();
+    private List<int> _selectedCoverIds = new();
+    private CoverSource _coverSource = CoverSource.Folder;
+    private IBrowserFile? _pendingUpload;
+
+    private bool _isLoadingPhotos;
+    private bool _isSaving;
+    private string? _errorMessage;
+    private string? _coverMessage;
+    private int? _lastLoadedFolderId;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsOpen || !FolderId.HasValue)
+        {
+            return;
+        }
+
+        if (_lastLoadedFolderId == FolderId)
+        {
+            return;
+        }
+
+        await LoadAsync(FolderId.Value);
+    }
+
+    private async Task LoadAsync(int folderId)
+    {
+        _lastLoadedFolderId = folderId;
+        _errorMessage = null;
+        _coverMessage = null;
+        _pendingUpload = null;
+        _isSaving = false;
+
+        try
+        {
+            _folder = await FolderService.GetFolderByIdAsync(folderId);
+            if (_folder == null)
+            {
+                _errorMessage = "Folder not found.";
+                return;
+            }
+
+            _name = _folder.Name;
+            _description = _folder.Description;
+            _isVisible = _folder.IsVisible;
+
+            var siblings = (await FolderService.GetSiblingFoldersAsync(folderId, includeHidden: true)).ToList();
+            _positionOptions = Math.Max(1, siblings.Count);
+            _positionIndex = siblings.FindIndex(s => s.Id == folderId);
+            if (_positionIndex < 0)
+            {
+                _positionIndex = 0;
+            }
+
+            _hasChildAlbums = await FolderService.FolderHasChildrenAsync(folderId, includeHidden: true);
+            _maxCovers = _hasChildAlbums ? 4 : 1;
+
+            _savedCovers = (await FolderService.GetFolderCoverPhotosAsync(folderId)).ToList();
+            _selectedCoverIds = _savedCovers.Select(p => p.Id).ToList();
+
+            _isLoadingPhotos = true;
+            _folderPhotos = (await FolderService.GetPhotosInFolderForCoverPickerAsync(folderId)).ToList();
+            var allPicker = (await FolderService.GetPhotosForCoverPickerAsync(folderId)).ToList();
+            _subfolderPhotos = allPicker.Where(p => p.FolderId != folderId).ToList();
+            _isLoadingPhotos = false;
+
+            _coverSource = _folderPhotos.Any()
+                ? CoverSource.Folder
+                : _subfolderPhotos.Any()
+                    ? CoverSource.Subfolders
+                    : CoverSource.Upload;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load folder edit dialog for {FolderId}", folderId);
+            _errorMessage = $"Could not load folder: {ex.Message}";
+        }
+    }
+
+    private void SetCoverSource(CoverSource source)
+    {
+        _coverSource = source;
+        _coverMessage = null;
+        if (source != CoverSource.Upload)
+        {
+            _pendingUpload = null;
+        }
+    }
+
+    private void ToggleCover(int photoId)
+    {
+        if (_selectedCoverIds.Contains(photoId))
+        {
+            _selectedCoverIds.Remove(photoId);
+        }
+        else if (_selectedCoverIds.Count < _maxCovers)
+        {
+            _selectedCoverIds.Add(photoId);
+        }
+
+        _coverMessage = null;
+    }
+
+    private void OnUploadSelected(InputFileChangeEventArgs e)
+    {
+        _pendingUpload = e.File;
+        _coverSource = CoverSource.Upload;
+        _coverMessage = null;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (_folder == null || !FolderId.HasValue)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        _errorMessage = null;
+        _coverMessage = null;
+
+        try
+        {
+            await FolderService.UpdateFolderSettingsAsync(
+                FolderId.Value,
+                _name,
+                _positionIndex,
+                _isVisible,
+                _description);
+
+            if (_pendingUpload != null)
+            {
+                await UploadCoverAsync(_pendingUpload);
+            }
+
+            if (_selectedCoverIds.Count > 0)
+            {
+                await FolderService.SetFolderCoverPhotosAsync(FolderId.Value, _selectedCoverIds);
+            }
+            else if (_savedCovers.Count > 0)
+            {
+                await FolderService.ClearFolderCoverPhotosAsync(FolderId.Value);
+            }
+
+            await OnSaved.InvokeAsync();
+            await Close();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving folder {FolderId}", FolderId);
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task UploadCoverAsync(IBrowserFile file)
+    {
+        var folder = await FolderService.GetFolderByIdAsync(FolderId!.Value)
+            ?? throw new InvalidOperationException("Folder not found.");
+
+        var folderPath = PathService.GetFullPath(folder.Path);
+        Directory.CreateDirectory(folderPath);
+
+        var safeName = Path.GetFileName(file.Name);
+        var filePath = Path.Combine(folderPath, safeName);
+        await using (var stream = file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024))
+        await using (var fileStream = new FileStream(filePath, FileMode.Create))
+        {
+            await stream.CopyToAsync(fileStream);
+        }
+
+        var photo = await PhotoService.CreateOrUpdatePhotoAsync(filePath, FolderId!.Value, safeName);
+        _selectedCoverIds = _hasChildAlbums
+            ? new List<int> { photo.Id }.Concat(_selectedCoverIds).Take(_maxCovers).ToList()
+            : new List<int> { photo.Id };
+    }
+
+    private async Task ClearCovers()
+    {
+        if (!FolderId.HasValue)
+        {
+            return;
+        }
+
+        _isSaving = true;
+        try
+        {
+            await FolderService.ClearFolderCoverPhotosAsync(FolderId.Value);
+            _selectedCoverIds.Clear();
+            _savedCovers.Clear();
+            _coverMessage = "Automatic thumbnails will be used.";
+        }
+        catch (Exception ex)
+        {
+            _coverMessage = $"Error: {ex.Message}";
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private async Task Close()
+    {
+        _lastLoadedFolderId = null;
+        _folder = null;
+        await OnClose.InvokeAsync();
+    }
+}

@@ -1,0 +1,192 @@
+.folder-edit-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.72);
+}
+
+.folder-edit-dialog {
+    width: min(560px, 100%);
+    max-height: min(90vh, 720px);
+    display: flex;
+    flex-direction: column;
+    background: #1a1a1a;
+    border: 1px solid #D4AF37;
+    border-radius: 6px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+
+.folder-edit-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #333;
+}
+
+.folder-edit-title {
+    margin: 0;
+    color: #D4AF37;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.folder-edit-close {
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+    cursor: pointer;
+}
+
+.folder-edit-close:hover {
+    color: #fff;
+}
+
+.folder-edit-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.folder-edit-body .form-label {
+    color: #D4AF37;
+    font-size: 0.85rem;
+}
+
+.folder-edit-body .form-control,
+.folder-edit-body .form-select {
+    background: #111;
+    border-color: #444;
+    color: #eee;
+}
+
+.folder-edit-divider {
+    border-color: #333;
+    margin: 1rem 0;
+}
+
+.folder-edit-section-title {
+    color: #D4AF37;
+    margin-bottom: 0.25rem;
+}
+
+.folder-edit-hint {
+    margin-bottom: 0.75rem;
+}
+
+.folder-edit-cover-preview {
+    display: flex;
+    gap: 0.35rem;
+    margin-bottom: 0.75rem;
+}
+
+.folder-edit-cover-preview img {
+    width: 56px;
+    height: 56px;
+    object-fit: cover;
+    border: 2px solid #D4AF37;
+    border-radius: 3px;
+}
+
+.folder-edit-cover-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+}
+
+.folder-edit-tab {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.8rem;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #222;
+    color: #ccc;
+    cursor: pointer;
+}
+
+.folder-edit-tab.active {
+    border-color: #D4AF37;
+    color: #D4AF37;
+    background: rgba(212, 175, 55, 0.12);
+}
+
+.folder-edit-photo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 0.5rem;
+    max-height: 220px;
+    overflow-y: auto;
+    margin-top: 0.5rem;
+    padding: 0.25rem;
+}
+
+.folder-edit-photo-btn {
+    position: relative;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    background: #111;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.folder-edit-photo-btn.selected {
+    border-color: #D4AF37;
+    box-shadow: 0 0 0 1px #D4AF37;
+}
+
+.folder-edit-photo-btn img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+}
+
+.folder-edit-photo-label {
+    display: block;
+    font-size: 0.6rem;
+    padding: 0.15rem 0.2rem;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.folder-edit-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid #333;
+}
+
+.folder-edit-footer .btn-outline-secondary {
+    color: #ccc;
+    border-color: #555;
+}
+
+.folder-edit-footer .btn-outline-secondary:hover {
+    color: #fff;
+    border-color: #888;
+    background: #333;
+}
+
+.folder-edit-footer .btn-primary {
+    background: #D4AF37;
+    border-color: #D4AF37;
+    color: #111;
+}
+
+.folder-edit-footer .btn-primary:hover {
+    background: #F4D03F;
+    border-color: #F4D03F;
+}

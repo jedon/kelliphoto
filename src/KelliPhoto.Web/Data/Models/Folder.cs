@@ -27,6 +27,9 @@ public class Folder
 
     public bool IsVisible { get; set; } = true;
 
+    /// <summary>Display order among siblings in the parent folder (lower = earlier).</summary>
+    public int SortOrder { get; set; }
+
     [MaxLength(2000)]
     public string? Description { get; set; }
 

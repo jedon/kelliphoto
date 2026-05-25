@@ -49,7 +49,7 @@
             }
 
             rootNodes.Clear();
-            foreach (var folder in roots.OrderBy(f => f.Name))
+            foreach (var folder in roots.OrderBy(f => f.SortOrder).ThenBy(f => f.Name))
             {
                 rootNodes.Add(await CreateNodeAsync(folder));
             }
@@ -153,7 +153,7 @@
                 {
                     var children = await FolderService.GetChildFoldersAsync(node.Folder.Id, IncludeHidden);
                     node.Children.Clear();
-                    foreach (var child in children.OrderBy(c => c.Name))
+                    foreach (var child in children.OrderBy(c => c.SortOrder).ThenBy(c => c.Name))
                     {
                         node.Children.Add(await CreateNodeAsync(child));
                     }

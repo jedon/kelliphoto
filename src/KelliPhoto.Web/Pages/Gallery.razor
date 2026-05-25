@@ -10,62 +10,14 @@
 
 <PageTitle>Gallery - Kelli Thompson Photography</PageTitle>
 
-<div class="gallery-page @(editMode ? "gallery-edit-active" : "")">
-    @if (isAdmin)
-    {
-        <div class="gallery-edit-toolbar">
-            <div class="form-check form-switch gallery-edit-toggle">
-                <input class="form-check-input" type="checkbox" id="gallery-edit-mode" @bind="editMode" @bind:after="OnEditModeChanged" />
-                <label class="form-check-label" for="gallery-edit-mode">Edit mode</label>
-            </div>
-        </div>
-    }
-
-    @if (editMode && DisplayFolderId.HasValue)
-    {
-        <div class="gallery-cover-toolbar">
-            <span class="gallery-cover-count">Covers: @selectedCoverPhotoIds.Count / 4</span>
-            <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ClearCovers" disabled="@isSavingCovers">Clear covers</button>
-            <button type="button" class="btn btn-primary btn-sm" @onclick="SaveCovers" disabled="@isSavingCovers">
-                @(isSavingCovers ? "Saving…" : "Save covers")
-            </button>
-            @if (!string.IsNullOrEmpty(coverMessage))
-            {
-                <span class="gallery-cover-message @(coverMessage.Contains("Error") ? "text-danger" : "text-success")">@coverMessage</span>
-            }
-        </div>
-
-        @if (subfolderCoverPhotos.Any())
-        {
-            <div class="gallery-subfolder-covers">
-                <p class="gallery-subfolder-covers-label">Pick covers from subfolders (click to toggle):</p>
-                <div class="gallery-subfolder-covers-scroll">
-                    @foreach (var photo in subfolderCoverPhotos)
-                    {
-                        var isCover = selectedCoverPhotoIds.Contains(photo.Id);
-                        <button type="button"
-                                class="gallery-subfolder-cover-thumb @(isCover ? "selected" : "")"
-                                @onclick="() => ToggleCoverSelection(photo.Id)">
-                            <img src="/api/images/thumbnail/@photo.Id?size=200" alt="@photo.Filename" loading="lazy" />
-                            @if (photo.Folder != null)
-                            {
-                                <span class="gallery-subfolder-cover-name">@photo.Folder.Name</span>
-                            }
-                        </button>
-                    }
-                </div>
-            </div>
-        }
-    }
-
-    <FolderBrowser FolderId="DisplayFolderId" EditMode="editMode" />
+<div class="gallery-page">
+    <FolderBrowser FolderId="DisplayFolderId"
+                   IsAdmin="isAdmin"
+                   OnFoldersChanged="HandleFoldersChanged" />
 
     @if (DisplayFolderId.HasValue)
     {
-        <PhotoGrid FolderId="DisplayFolderId.Value"
-                   EditMode="editMode"
-                   SelectedCoverPhotoIds="selectedCoverPhotoIds"
-                   OnPhotoCoverToggle="ToggleCoverSelection" />
+        <PhotoGrid FolderId="DisplayFolderId.Value" />
     }
 </div>
 
@@ -75,11 +27,6 @@
     private int? DisplayFolderId { get; set; }
     private int? _lastProcessedFolderId;
     private bool isAdmin;
-    private bool editMode;
-    private List<int> selectedCoverPhotoIds = new();
-    private List<Photo> subfolderCoverPhotos = new();
-    private bool isSavingCovers;
-    private string? coverMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -116,116 +63,11 @@
             var homePageHighlights = await FolderService.GetFolderByNameAsync("Home Page Highlights");
             DisplayFolderId = homePageHighlights?.Id;
         }
-
-        await LoadCoverPhotosAsync();
     }
 
-    private async Task OnEditModeChanged()
+    private Task HandleFoldersChanged()
     {
-        if (editMode && DisplayFolderId.HasValue)
-        {
-            await LoadCoverPhotosAsync();
-        }
-        else if (!editMode)
-        {
-            subfolderCoverPhotos = new();
-            coverMessage = null;
-        }
-    }
-
-    private async Task LoadCoverPhotosAsync()
-    {
-        coverMessage = null;
-        selectedCoverPhotoIds.Clear();
-
-        if (!DisplayFolderId.HasValue)
-        {
-            return;
-        }
-
-        try
-        {
-            var folderId = DisplayFolderId.Value;
-            var covers = await FolderService.GetFolderCoverPhotosAsync(folderId);
-            selectedCoverPhotoIds = covers.Select(p => p.Id).ToList();
-
-            var pickerPhotos = await FolderService.GetPhotosForCoverPickerAsync(folderId);
-            subfolderCoverPhotos = pickerPhotos
-                .Where(p => p.FolderId != folderId)
-                .ToList();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error loading cover photos for folder {FolderId}", DisplayFolderId);
-            coverMessage = $"Error loading covers: {ex.Message}";
-            subfolderCoverPhotos = new();
-        }
-    }
-
-    private void ToggleCoverSelection(int photoId)
-    {
-        if (selectedCoverPhotoIds.Contains(photoId))
-        {
-            selectedCoverPhotoIds.Remove(photoId);
-        }
-        else if (selectedCoverPhotoIds.Count < 4)
-        {
-            selectedCoverPhotoIds.Add(photoId);
-        }
-
-        coverMessage = null;
-    }
-
-    private async Task SaveCovers()
-    {
-        if (!DisplayFolderId.HasValue)
-        {
-            return;
-        }
-
-        isSavingCovers = true;
-        coverMessage = null;
-        try
-        {
-            await FolderService.SetFolderCoverPhotosAsync(DisplayFolderId.Value, selectedCoverPhotoIds);
-            var covers = await FolderService.GetFolderCoverPhotosAsync(DisplayFolderId.Value);
-            selectedCoverPhotoIds = covers.Select(p => p.Id).ToList();
-            coverMessage = "Cover images saved.";
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error saving folder covers");
-            coverMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            isSavingCovers = false;
-        }
-    }
-
-    private async Task ClearCovers()
-    {
-        if (!DisplayFolderId.HasValue)
-        {
-            return;
-        }
-
-        isSavingCovers = true;
-        coverMessage = null;
-        try
-        {
-            await FolderService.ClearFolderCoverPhotosAsync(DisplayFolderId.Value);
-            selectedCoverPhotoIds.Clear();
-            coverMessage = "Cover images cleared.";
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error clearing folder covers");
-            coverMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            isSavingCovers = false;
-        }
+        StateHasChanged();
+        return Task.CompletedTask;
     }
 }
