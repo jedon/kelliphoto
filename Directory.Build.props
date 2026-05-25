@@ -6,5 +6,7 @@
     <AssemblyVersion>$(SemVerBase).0</AssemblyVersion>
     <FileVersion>$(SemVerBase).0</FileVersion>
     <InformationalVersion>$(ApplicationVersion)</InformationalVersion>
+    <!-- We set build metadata in CI; avoid SDK appending another full git SHA. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
   </PropertyGroup>
 </Project>

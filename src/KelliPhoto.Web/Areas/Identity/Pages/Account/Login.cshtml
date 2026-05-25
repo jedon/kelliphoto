@@ -38,9 +38,15 @@
                             <button id="login-submit" type="submit" class="w-100 btn btn-lg btn-primary">Log in</button>
                         </div>
                     </form>
-                    <p class="text-center text-muted small mt-3 mb-0" data-testid="app-version">Version @Model.AppVersion</p>
                 </div>
             </div>
+            <p class="login-version" data-testid="app-version">
+                <span class="login-version__tag">@Model.AppVersion</span>
+                @if (!string.IsNullOrEmpty(Model.BuildId))
+                {
+                    <span class="login-version__build" title="Build @Model.BuildId">@Model.BuildId</span>
+                }
+            </p>
         </div>
     </div>
 </div>
