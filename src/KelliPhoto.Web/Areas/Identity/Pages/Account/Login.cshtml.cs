@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using KelliPhoto.Web.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -11,11 +12,17 @@ public class LoginModel : PageModel
     private readonly SignInManager<IdentityUser> _signInManager;
     private readonly ILogger<LoginModel> _logger;
 
-    public LoginModel(SignInManager<IdentityUser> signInManager, ILogger<LoginModel> logger)
+    public LoginModel(
+        SignInManager<IdentityUser> signInManager,
+        ILogger<LoginModel> logger,
+        IAppVersionService appVersion)
     {
         _signInManager = signInManager;
         _logger = logger;
+        AppVersion = appVersion.DisplayVersion;
     }
+
+    public string AppVersion { get; }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();

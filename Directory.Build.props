@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <SemVerBase Condition="'$(SemVerBase)' == ''">$([System.IO.File]::ReadAllText('$(MSBuildThisFileDirectory)VERSION').Trim())</SemVerBase>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">$(SemVerBase)</ApplicationVersion>
+    <Version>$(SemVerBase)</Version>
+    <AssemblyVersion>$(SemVerBase).0</AssemblyVersion>
+    <FileVersion>$(SemVerBase).0</FileVersion>
+    <InformationalVersion>$(ApplicationVersion)</InformationalVersion>
+  </PropertyGroup>
+</Project>

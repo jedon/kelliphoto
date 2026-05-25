@@ -148,6 +148,7 @@ builder.Services.AddMemoryCache();
 builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("Email"));
 
 // Register application services
+builder.Services.AddSingleton<IAppVersionService, AppVersionService>();
 builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IScanProgressService, ScanProgressService>();
 builder.Services.AddSingleton<IRateLimitService, RateLimitService>();

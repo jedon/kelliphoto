@@ -63,6 +63,18 @@ cat ~/.ssh/kelliphoto-deploy.pub >> ~/.ssh/authorized_keys
 
 GitHub’s cloud runners can SSH to your server if `DEPLOY_HOST` is reachable (e.g. `142.4.216.160`). For a private LAN only, use a **self-hosted runner** on the VM (outbound-only to GitHub; no port forward needed).
 
+### Upload deploy scripts manually (if needed)
+
+`Set-SCPItem` / `scp` **cannot** create parent folders. The remote directory must exist first:
+
+```powershell
+.\scripts\deploy\Upload-DeployScript.ps1
+# or: ssh jedon@142.4.216.160 "mkdir -p ~/kelli.photo/scripts/deploy"
+# then scp to jedon@host:~/kelli.photo/scripts/deploy/   (note trailing slash = directory)
+```
+
+Normally **git pull on the server** is enough — `scripts/deploy/remote-deploy.sh` is in the repo.
+
 ### Option A — from Windows (on the same LAN as the VM)
 
 ```powershell
@@ -146,7 +158,15 @@ npx playwright install chromium
 npm test
 ```
 
-## 7. Typical release flow
+## 7. Semantic versioning
+
+The app version is defined in the repo root [`VERSION`](../VERSION) file (e.g. `1.0.0`). CI builds Docker images with metadata appended: `1.0.0+abc1234` (short git SHA). Git tags `v1.2.3` produce release version `1.2.3`.
+
+- **Bump** before a release: edit `VERSION` (major/minor/patch per [semver](https://semver.org/)).
+- **Verify**: open the login page — `Version …` appears under the sign-in form.
+- **Tag a release** (optional): `git tag v1.0.0 && git push origin v1.0.0`
+
+## 8. Typical release flow
 
 1. Push to `main`.
 2. Watch **Actions** → all jobs green.
@@ -159,7 +179,7 @@ To deploy manually without pushing:
 ssh user@your-server 'bash ~/kelli.photo/scripts/deploy/remote-deploy.sh'
 ```
 
-## Troubleshooting
+## 9. Troubleshooting
 
 | Issue | Fix |
 |-------|-----|

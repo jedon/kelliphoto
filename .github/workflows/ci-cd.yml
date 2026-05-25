@@ -103,6 +103,19 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      - name: Resolve semantic version
+        id: semver
+        run: |
+          BASE="$(tr -d '[:space:]' < VERSION)"
+          SHORT_SHA="${GITHUB_SHA:0:7}"
+          if [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            FULL="${GITHUB_REF#refs/tags/v}"
+          else
+            FULL="${BASE}+${SHORT_SHA}"
+          fi
+          echo "base=${BASE}" >> "$GITHUB_OUTPUT"
+          echo "full=${FULL}" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
@@ -121,6 +134,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            APPLICATION_VERSION=${{ steps.semver.outputs.full }}
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
 
