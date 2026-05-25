@@ -30,9 +30,11 @@ var loggerConfig = new LoggerConfiguration()
     .ReadFrom.Configuration(builder.Configuration)
     .Enrich.FromLogContext();
 
-// Only add file logging if configured (production) or if log path exists in config
+// Only add file logging in non-test hosts (CI/tests use appsettings.Testing.json — no /app/logs).
+var isTestHost = string.Equals(builder.Environment.EnvironmentName, "Testing", StringComparison.OrdinalIgnoreCase)
+    || IsMvcIntegrationTestHost();
 var logPath = builder.Configuration["Serilog:WriteTo:1:Args:path"];
-if (!string.IsNullOrEmpty(logPath))
+if (!string.IsNullOrEmpty(logPath) && !isTestHost)
 {
     // Ensure log directory exists
     var logDir = Path.GetDirectoryName(logPath);
