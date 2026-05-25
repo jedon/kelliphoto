@@ -16,7 +16,7 @@
 
 4. **EF Core CLI** (`dotnet ef`): `ApplicationDbContextFactory` also loads `.env` so migrations pick up the connection string without duplicating it in JSON.
 
-5. **GitHub Actions:** the [.NET CI workflow](../.github/workflows/dotnet-ci.yml) expects repository secrets `CONNECTION_STRINGS__DEFAULT_CONNECTION` and `EMAIL__SMTP_PASSWORD`, mapped to the same env names the app uses. Do not commit real values; configure secrets under **Settings → Secrets and variables → Actions**.
+5. **GitHub Actions:** [CI/CD](../.github/workflows/ci-cd.yml) expects repository secrets `CONNECTION_STRINGS__DEFAULT_CONNECTION` and `EMAIL__SMTP_PASSWORD`. See [CICD_SETUP.md](CICD_SETUP.md) for deploy secrets and Playwright e2e.
 
 6. Apply EF Core migrations:
 
@@ -45,6 +45,15 @@ From the repository root:
 
 ```powershell
 dotnet test
+```
+
+**Playwright (browser regression):**
+
+```powershell
+cd e2e
+npm ci
+npx playwright install chromium
+npm test
 ```
 
 The test project lives under `tests/KelliPhoto.Web.Tests`. **Integration tests** use `WebApplicationFactory` with `ASPNETCORE_ENVIRONMENT=Testing` and `KELLIPHOTO_INTEGRATION_TEST=1`; the app switches Entity Framework to an in-memory database and skips HTTPS redirection. Each test run should use a **configured** `WebApplicationFactory` from `WithWebHostBuilder` (not only the shared fixture type) so `GallerySettings` overrides match the temp directories where tests create image files.

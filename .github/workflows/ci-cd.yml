@@ -1,0 +1,163 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_VERSION: "10.0.x"
+  REGISTRY: docker.io
+  IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/kelliphoto-web
+
+jobs:
+  unit-tests:
+    name: Unit & integration tests
+    runs-on: ubuntu-latest
+    env:
+      ConnectionStrings__DefaultConnection: ${{ secrets.CONNECTION_STRINGS__DEFAULT_CONNECTION }}
+      Email__SmtpPassword: ${{ secrets.EMAIL__SMTP_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore
+        run: dotnet restore KelliPhoto.sln
+
+      - name: Build
+        run: dotnet build KelliPhoto.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test KelliPhoto.sln --configuration Release --no-build --verbosity normal
+
+  playwright:
+    name: Playwright regression
+    needs: unit-tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Build web project
+        run: dotnet build src/KelliPhoto.Web/KelliPhoto.Web.csproj --configuration Release
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: e2e/package-lock.json
+
+      - name: Install Playwright
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install chromium --with-deps
+
+      - name: Run Playwright
+        working-directory: e2e
+        env:
+          CI: true
+        run: npm test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            e2e/playwright-report/
+            e2e/test-results/
+          retention-days: 7
+
+  build-push:
+    name: Build & push Docker image
+    needs: [unit-tests, playwright]
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:buildcache,mode=max
+
+  deploy:
+    name: Deploy to server
+    needs: build-push
+    if: >
+      vars.ENABLE_DEPLOY == 'true' &&
+      (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master') &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push')
+    runs-on: ${{ vars.DEPLOY_RUNNER == 'self-hosted' && 'self-hosted' || 'ubuntu-latest' }}
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        if: vars.DEPLOY_RUNNER == 'self-hosted'
+
+      - name: Deploy on runner (self-hosted)
+        if: vars.DEPLOY_RUNNER == 'self-hosted'
+        env:
+          COMPOSE_DIR: ${{ vars.DEPLOY_COMPOSE_DIR || '~/kelli.photo/docker' }}
+        run: |
+          set -euo pipefail
+          DEPLOY_SCRIPT="${{ vars.DEPLOY_SCRIPT_PATH || '$HOME/kelli.photo/scripts/deploy/remote-deploy.sh' }}"
+          export COMPOSE_DIR="${COMPOSE_DIR/#\~/$HOME}"
+          bash "${DEPLOY_SCRIPT/#\~/$HOME}"
+
+      - name: Deploy over SSH (cloud runner)
+        if: vars.DEPLOY_RUNNER != 'self-hosted'
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_SSH_PORT || 22 }}
+          script_stop: true
+          script: |
+            set -euo pipefail
+            DEPLOY_SCRIPT="${{ vars.DEPLOY_SCRIPT_PATH || '~/kelli.photo/scripts/deploy/remote-deploy.sh' }}"
+            export COMPOSE_DIR="${{ vars.DEPLOY_COMPOSE_DIR || '~/kelli.photo/docker' }}"
+            bash "$DEPLOY_SCRIPT"

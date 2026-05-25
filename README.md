@@ -115,7 +115,7 @@ For Docker deployment, pass the connection string via environment variables (for
 
 If deploying on Proxmox with external access:
 ```bash
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
+sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 142.4.216.160:15432
 sudo netfilter-persistent save
 ```
 
@@ -137,8 +137,7 @@ kelli.photo/
 ├── scripts/                     # Shell and PowerShell automation (migrations, verification)
 ├── .github/
 │   └── workflows/
-│       ├── docker-build.yml    # Build and push Docker image
-│       └── dotnet-ci.yml       # Restore, build, test on push/PR
+│       └── ci-cd.yml           # Test, Playwright, build, deploy
 └── README.md
 ```
 
@@ -171,16 +170,17 @@ dotnet test
 
 ## Deployment
 
-### GitHub Actions
+### CI/CD (push to `main`)
 
-- **`.github/workflows/dotnet-ci.yml`** — restores, builds, and runs `dotnet test` on pushes and pull requests to `main`/`master`. Configure repository secrets `CONNECTION_STRINGS__DEFAULT_CONNECTION` and `EMAIL__SMTP_PASSWORD` so the app configuration is valid during the test run.
-- **`docker-build.yml`** — builds the Docker image on push to main/master, pushes to Docker Hub, and tags with `latest`, branch name, and commit SHA.
+**[docs/CICD_SETUP.md](docs/CICD_SETUP.md)** — full setup for secrets, self-hosted runner, and auto-deploy.
 
-### Updating the Application
+- **`.github/workflows/ci-cd.yml`** — unit tests → Playwright → Docker build/push → optional SSH deploy
+- Set `ENABLE_DEPLOY=true` and deploy secrets when ready; use a **self-hosted runner** if the server is on a private LAN (Proxmox).
 
-1. Make changes and push to GitHub
-2. Wait for GitHub Actions to build and push the image
-3. In Portainer: Containers → `kelliphoto-web` → Recreate (pulls latest image)
+### Manual update (Portainer)
+
+1. Push to GitHub and wait for the workflow
+2. Portainer → `kelliphoto-web` → **Recreate** (pull latest image), or run `scripts/deploy/remote-deploy.sh` on the server
 
 ## Troubleshooting
 
