@@ -327,9 +327,85 @@ public class FolderService : IFolderService
 
     public async Task<Photo?> GetFolderThumbnailAsync(int folderId)
     {
+        var photos = await GetFolderThumbnailPhotosAsync(folderId, maxCount: 1);
+        return photos.FirstOrDefault();
+    }
+
+    public async Task<IReadOnlyList<Photo>> GetFolderThumbnailPhotosAsync(int folderId, int maxCount = 4)
+    {
+        if (maxCount < 1)
+        {
+            return Array.Empty<Photo>();
+        }
+
         await using var context = await _contextFactory.CreateDbContextAsync();
-        
-        // First, try to get the folder with its chosen thumbnail
+
+        var curatedCovers = await context.FolderCoverPhotos
+            .AsNoTracking()
+            .Where(fcp => fcp.FolderId == folderId)
+            .OrderBy(fcp => fcp.SortOrder)
+            .Take(maxCount)
+            .Select(fcp => fcp.Photo)
+            .ToListAsync();
+
+        if (curatedCovers.Count > 0)
+        {
+            return curatedCovers;
+        }
+
+        var folder = await context.Folders
+            .AsNoTracking()
+            .Include(f => f.ThumbnailPhoto)
+            .FirstOrDefaultAsync(f => f.Id == folderId);
+
+        if (folder?.ThumbnailPhotoId.HasValue == true && folder.ThumbnailPhoto != null)
+        {
+            return new[] { folder.ThumbnailPhoto };
+        }
+
+        var childFolders = await GetChildFoldersAsync(folderId);
+        if (childFolders.Count > 0)
+        {
+            var childThumbnails = new List<Photo>();
+            foreach (var child in childFolders.Take(maxCount))
+            {
+                var cover = await GetFolderCoverPhotoAsync(context, child.Id);
+                if (cover != null)
+                {
+                    childThumbnails.Add(cover);
+                }
+            }
+
+            if (childThumbnails.Count > 0)
+            {
+                return childThumbnails;
+            }
+        }
+
+        var folderPhotos = await context.Photos
+            .AsNoTracking()
+            .Where(p => p.FolderId == folderId)
+            .OrderBy(p => p.TakenAt ?? p.CreatedAt)
+            .Take(maxCount)
+            .ToListAsync();
+
+        return folderPhotos;
+    }
+
+    private async Task<Photo?> GetFolderCoverPhotoAsync(ApplicationDbContext context, int folderId)
+    {
+        var curated = await context.FolderCoverPhotos
+            .AsNoTracking()
+            .Where(fcp => fcp.FolderId == folderId)
+            .OrderBy(fcp => fcp.SortOrder)
+            .Select(fcp => fcp.Photo)
+            .FirstOrDefaultAsync();
+
+        if (curated != null)
+        {
+            return curated;
+        }
+
         var folder = await context.Folders
             .AsNoTracking()
             .Include(f => f.ThumbnailPhoto)
@@ -340,14 +416,37 @@ public class FolderService : IFolderService
             return folder.ThumbnailPhoto;
         }
 
-        // If no chosen thumbnail, get the first photo in the folder
         var firstPhoto = await context.Photos
             .AsNoTracking()
             .Where(p => p.FolderId == folderId)
             .OrderBy(p => p.TakenAt ?? p.CreatedAt)
             .FirstOrDefaultAsync();
 
-        return firstPhoto;
+        if (firstPhoto != null)
+        {
+            return firstPhoto;
+        }
+
+        var childFolders = await context.Folders
+            .AsNoTracking()
+            .Where(f => f.ParentId == folderId)
+            .Where(f => !f.Name.StartsWith(".") &&
+                        f.Name.ToLower() != "home page highlights" &&
+                        f.Name.ToLower() != "testfolder")
+            .Where(f => f.IsVisible)
+            .OrderBy(f => f.Name)
+            .ToListAsync();
+
+        foreach (var child in childFolders)
+        {
+            var cover = await GetFolderCoverPhotoAsync(context, child.Id);
+            if (cover != null)
+            {
+                return cover;
+            }
+        }
+
+        return null;
     }
 
     public async Task SetFolderThumbnailAsync(int folderId, int photoId)
@@ -373,6 +472,120 @@ public class FolderService : IFolderService
         }
 
         folder.ThumbnailPhotoId = photoId;
+        await context.SaveChangesAsync();
+
+        await SyncLegacyThumbnailToCoverPhotosAsync(context, folderId);
+    }
+
+    public async Task<IReadOnlyList<Photo>> GetFolderCoverPhotosAsync(int folderId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        return await context.FolderCoverPhotos
+            .AsNoTracking()
+            .Where(fcp => fcp.FolderId == folderId)
+            .OrderBy(fcp => fcp.SortOrder)
+            .Select(fcp => fcp.Photo)
+            .ToListAsync();
+    }
+
+    public async Task SetFolderCoverPhotosAsync(int folderId, IReadOnlyList<int> photoIds)
+    {
+        if (photoIds.Count > 4)
+        {
+            throw new ArgumentException("A folder can have at most 4 cover photos.", nameof(photoIds));
+        }
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var folder = await context.Folders.FindAsync(folderId)
+            ?? throw new ArgumentException($"Folder with ID {folderId} not found", nameof(folderId));
+
+        var distinctIds = photoIds.Distinct().ToList();
+        if (distinctIds.Count != photoIds.Count)
+        {
+            throw new ArgumentException("Duplicate photo IDs are not allowed.", nameof(photoIds));
+        }
+
+        if (distinctIds.Count > 0)
+        {
+            var photos = await context.Photos
+                .Where(p => distinctIds.Contains(p.Id))
+                .ToListAsync();
+
+            if (photos.Count != distinctIds.Count)
+            {
+                throw new ArgumentException("One or more photo IDs were not found.", nameof(photoIds));
+            }
+
+            foreach (var photo in photos)
+            {
+                if (photo.FolderId != folderId)
+                {
+                    throw new ArgumentException(
+                        $"Photo {photo.Id} does not belong to folder {folderId}.",
+                        nameof(photoIds));
+                }
+            }
+        }
+
+        var existing = await context.FolderCoverPhotos
+            .Where(fcp => fcp.FolderId == folderId)
+            .ToListAsync();
+        context.FolderCoverPhotos.RemoveRange(existing);
+
+        for (var i = 0; i < distinctIds.Count; i++)
+        {
+            context.FolderCoverPhotos.Add(new FolderCoverPhoto
+            {
+                FolderId = folderId,
+                PhotoId = distinctIds[i],
+                SortOrder = i
+            });
+        }
+
+        folder.ThumbnailPhotoId = distinctIds.Count > 0 ? distinctIds[0] : null;
+        await context.SaveChangesAsync();
+    }
+
+    public async Task ClearFolderCoverPhotosAsync(int folderId)
+    {
+        await SetFolderCoverPhotosAsync(folderId, Array.Empty<int>());
+    }
+
+    public async Task<bool> FolderHasChildrenAsync(int folderId, bool includeHidden = true)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var query = context.Folders.AsNoTracking().Where(f => f.ParentId == folderId);
+        if (!includeHidden)
+        {
+            query = query.Where(f => f.IsVisible);
+        }
+
+        return await query.AnyAsync();
+    }
+
+    private static async Task SyncLegacyThumbnailToCoverPhotosAsync(ApplicationDbContext context, int folderId)
+    {
+        var folder = await context.Folders.FindAsync(folderId);
+        if (folder?.ThumbnailPhotoId == null)
+        {
+            return;
+        }
+
+        var existing = await context.FolderCoverPhotos
+            .Where(fcp => fcp.FolderId == folderId)
+            .ToListAsync();
+        if (existing.Count > 0)
+        {
+            return;
+        }
+
+        context.FolderCoverPhotos.Add(new FolderCoverPhoto
+        {
+            FolderId = folderId,
+            PhotoId = folder.ThumbnailPhotoId.Value,
+            SortOrder = 0
+        });
         await context.SaveChangesAsync();
     }
 

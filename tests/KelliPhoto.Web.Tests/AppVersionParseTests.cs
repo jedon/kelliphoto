@@ -5,30 +5,15 @@ namespace KelliPhoto.Web.Tests;
 public class AppVersionParseTests
 {
     [Fact]
-    public void Parse_StripsSdkAppendedFullGitSha()
+    public void ParseSemVer_StripsBuildMetadataAndSdkGitSuffix()
     {
-        var (semver, build) = AppVersionService.Parse(
-            "1.0.0+f9bf525.f9bf525ab0b703f7a13fa8e042b2c0162c63fb3e");
-
-        Assert.Equal("1.0.0", semver);
-        Assert.Equal("f9bf525", build);
+        Assert.Equal("1.0.0", AppVersionService.ParseSemVer(
+            "1.0.0+f9bf525.f9bf525ab0b703f7a13fa8e042b2c0162c63fb3e"));
     }
 
     [Fact]
-    public void Parse_PlainSemVer_HasNoBuild()
+    public void ParseSemVer_PlainSemVer()
     {
-        var (semver, build) = AppVersionService.Parse("1.0.0");
-
-        Assert.Equal("1.0.0", semver);
-        Assert.Null(build);
-    }
-
-    [Fact]
-    public void Parse_CiStyleMetadata()
-    {
-        var (semver, build) = AppVersionService.Parse("1.0.0+abc1234");
-
-        Assert.Equal("1.0.0", semver);
-        Assert.Equal("abc1234", build);
+        Assert.Equal("1.0.0", AppVersionService.ParseSemVer("1.0.0"));
     }
 }

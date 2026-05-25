@@ -10,7 +10,12 @@ public interface IFolderService
     Task<Folder> CreateOrUpdateFolderAsync(string path, string name, int? parentId = null);
     Task<List<Folder>> ScanFoldersAsync(string rootPath);
     Task<Photo?> GetFolderThumbnailAsync(int folderId);
+    Task<IReadOnlyList<Photo>> GetFolderThumbnailPhotosAsync(int folderId, int maxCount = 4);
     Task SetFolderThumbnailAsync(int folderId, int photoId);
+    Task<IReadOnlyList<Photo>> GetFolderCoverPhotosAsync(int folderId);
+    Task SetFolderCoverPhotosAsync(int folderId, IReadOnlyList<int> photoIds);
+    Task ClearFolderCoverPhotosAsync(int folderId);
+    Task<bool> FolderHasChildrenAsync(int folderId, bool includeHidden = true);
     Task<Folder?> GetFolderByNameAsync(string name, int? parentId = null);
     Task<List<Folder>> GetTopLevelFoldersAsync(bool includeHidden = false);
     Task UpdateFolderVisibilityAsync(int folderId, bool isVisible);
