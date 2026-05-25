@@ -22,6 +22,10 @@ fi
 echo "==> Pulling image..."
 "${DOCKER[@]}" pull "$IMAGE"
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export COMPOSE_DIR IMAGE CONTAINER_NAME DEPLOY_IMAGE="$IMAGE" DEPLOY_CONTAINER_NAME="$CONTAINER_NAME"
+bash "$SCRIPT_DIR/apply-migrations.sh"
+
 if "${DOCKER[@]}" ps -a --format '{{.Names}}' | grep -qx "$CONTAINER_NAME"; then
   echo "==> Recreating existing container: ${CONTAINER_NAME}"
 

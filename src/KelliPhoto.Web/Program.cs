@@ -166,6 +166,38 @@ builder.Services.AddHostedService<CatalogService>();
 
 var app = builder.Build();
 
+// CI/CD and scripts/deploy/apply-migrations.sh: docker run <image> --migrate
+if (args.Any(a => string.Equals(a, "--migrate", StringComparison.OrdinalIgnoreCase)))
+{
+    if (useInMemoryIntegrationTest)
+    {
+        Log.Warning("Skipping migrations: in-memory or test host configuration.");
+        return;
+    }
+
+    using (var scope = app.Services.CreateScope())
+    {
+        var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+        await using var db = await dbFactory.CreateDbContextAsync();
+        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        if (pending.Count == 0)
+        {
+            Log.Information("No pending database migrations.");
+        }
+        else
+        {
+            Log.Information(
+                "Applying {Count} pending migration(s): {Names}",
+                pending.Count,
+                string.Join(", ", pending));
+            await db.Database.MigrateAsync();
+            Log.Information("Database migrations applied successfully.");
+        }
+    }
+
+    return;
+}
+
 // Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {

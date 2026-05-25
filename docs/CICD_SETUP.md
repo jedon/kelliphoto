@@ -134,16 +134,25 @@ Set `DEPLOY_RUNNER` = `self-hosted` and install a runner on the VM (see above).
 
 ## 5. Database migrations
 
-Deploy **does not** run EF migrations automatically (production DB is external). After schema changes:
+Deploy **runs EF migrations automatically** after pulling the new image and **before** recreating `kelliphoto-web`:
+
+1. `scripts/deploy/remote-deploy.sh` calls `scripts/deploy/apply-migrations.sh`
+2. That runs `docker run --rm <image> --migrate` with the same connection string as production (`docker/.env` or the existing container’s env)
+3. Uses the same Docker network as the web container when Postgres is on the compose network
+
+Requirements on the server:
+
+- `docker/.env` must define `CONNECTION_STRINGS__DEFAULT_CONNECTION`, **or** the running container already has it in its environment
+- The deploy user must reach Postgres from a one-off container (same network as today’s web container)
+
+Manual migration (fallback):
 
 ```bash
-cd ~/kelli.photo/src/KelliPhoto.Web
-dotnet ef migrations script -o ~/complete-migration.sql
-psql -h ... -f ~/complete-migration.sql
-docker restart kelliphoto-web
+bash ~/kelli.photo/scripts/deploy/apply-migrations.sh
+# or: docker run --rm -e ConnectionStrings__DefaultConnection='...' -e ASPNETCORE_ENVIRONMENT=Production jedon/kelliphoto-web:latest --migrate
 ```
 
-See `docs/APPLY_MIGRATIONS_GUIDE.md`.
+See `docs/APPLY_MIGRATIONS_GUIDE.md` for troubleshooting and SQL-based fixes.
 
 ## 6. Local commands
 
