@@ -1,6 +1,8 @@
 # Build stage
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG APPLICATION_VERSION
+ARG GIT_COMMIT
+ARG BUILD_TIMESTAMP
 WORKDIR /src
 
 # Copy csproj and restore dependencies
@@ -13,13 +15,19 @@ RUN dotnet restore "src/KelliPhoto.Web/KelliPhoto.Web.csproj"
 COPY . .
 WORKDIR "/src/src/KelliPhoto.Web"
 RUN dotnet build "KelliPhoto.Web.csproj" -c Release -o /app/build \
-    /p:ApplicationVersion="${APPLICATION_VERSION:-}"
+    /p:ApplicationVersion="${APPLICATION_VERSION:-}" \
+    /p:GitCommit="${GIT_COMMIT:-}" \
+    /p:BuildTimestamp="${BUILD_TIMESTAMP:-}"
 
 # Publish stage
 FROM build AS publish
 ARG APPLICATION_VERSION
+ARG GIT_COMMIT
+ARG BUILD_TIMESTAMP
 RUN dotnet publish "KelliPhoto.Web.csproj" -c Release -o /app/publish /p:UseAppHost=false \
-    /p:ApplicationVersion="${APPLICATION_VERSION:-}"
+    /p:ApplicationVersion="${APPLICATION_VERSION:-}" \
+    /p:GitCommit="${GIT_COMMIT:-}" \
+    /p:BuildTimestamp="${BUILD_TIMESTAMP:-}"
 
 # Runtime stage
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final

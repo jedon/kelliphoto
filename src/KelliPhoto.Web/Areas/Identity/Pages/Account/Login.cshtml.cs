@@ -20,9 +20,11 @@ public class LoginModel : PageModel
         _signInManager = signInManager;
         _logger = logger;
         AppVersion = appVersion.DisplayVersion;
+        VersionTooltip = appVersion.BuildTooltip;
     }
 
     public string AppVersion { get; }
+    public string? VersionTooltip { get; }
 
     [BindProperty]
     public InputModel Input { get; set; } = new();

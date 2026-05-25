@@ -434,12 +434,25 @@ img {
     opacity: 1;
 }
 
-.login-version {
+.app-version {
     text-align: center;
     margin: 1rem 0 0;
     font-size: 0.7rem;
     letter-spacing: 0.06em;
     color: rgba(212, 175, 55, 0.5);
+    cursor: default;
+}
+
+.app-version[title]:not([title=""]) {
+    cursor: help;
+}
+
+.about-page .app-version {
+    margin-top: 2rem;
+}
+
+.login-version {
+    margin-top: 1rem;
 }
 
 .admin-page .admin-path-display {

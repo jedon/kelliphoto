@@ -7,4 +7,7 @@ public interface IAppVersionService
 
     /// <summary>Label for UI (e.g. v1.0.0).</summary>
     string DisplayVersion { get; }
+
+    /// <summary>Hover text with commit hash and publish time, when available.</summary>
+    string? BuildTooltip { get; }
 }

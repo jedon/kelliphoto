@@ -160,10 +160,10 @@ npm test
 
 ## 7. Semantic versioning
 
-The app version is defined in the repo root [`VERSION`](../VERSION) file (e.g. `1.0.0`). CI and Docker builds use that value; git tags `v1.2.3` override it for release builds. The login page shows `v1.0.0`.
+The app version is defined in the repo root [`VERSION`](../VERSION) file (e.g. `1.0.0`). CI and Docker builds use that value; git tags `v1.2.3` override it for release builds. The login and About pages show `v1.0.0`; hover for full git commit and publish time (CI builds only).
 
 - **Bump** before a release: edit `VERSION` (major/minor/patch per [semver](https://semver.org/)).
-- **Verify**: open the login page — version appears below the sign-in card.
+- **Verify**: open About or the login page — hover `v1.0.0` for commit hash and build timestamp.
 - **Tag a release** (optional): `git tag v1.0.0 && git push origin v1.0.0`
 
 ## 8. Typical release flow
