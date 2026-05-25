@@ -158,6 +158,8 @@ jobs:
           script_stop: true
           script: |
             set -euo pipefail
-            DEPLOY_SCRIPT="${{ vars.DEPLOY_SCRIPT_PATH || '~/kelli.photo/scripts/deploy/remote-deploy.sh' }}"
-            export COMPOSE_DIR="${{ vars.DEPLOY_COMPOSE_DIR || '~/kelli.photo/docker' }}"
+            DEPLOY_SCRIPT="${{ vars.DEPLOY_SCRIPT_PATH || '$HOME/kelli.photo/scripts/deploy/remote-deploy.sh' }}"
+            export COMPOSE_DIR="${{ vars.DEPLOY_COMPOSE_DIR || '$HOME/kelli.photo/docker' }}"
+            eval "DEPLOY_SCRIPT=$DEPLOY_SCRIPT"
+            eval "COMPOSE_DIR=$COMPOSE_DIR"
             bash "$DEPLOY_SCRIPT"
