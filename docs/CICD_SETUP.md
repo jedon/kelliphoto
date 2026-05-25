@@ -17,7 +17,7 @@ One workflow (`.github/workflows/ci-cd.yml`) runs on every push/PR to `main` / `
 | `DOCKERHUB_TOKEN` | Docker Hub login |
 | `CONNECTION_STRINGS__DEFAULT_CONNECTION` | Unit test host configuration (same as local `.env`) |
 | `EMAIL__SMTP_PASSWORD` | Unit test host configuration |
-| `DEPLOY_HOST` | SSH hostname or IP for deploy job |
+| `DEPLOY_HOST` | SSH hostname or IP for deploy job (e.g. `142.4.216.160`) |
 | `DEPLOY_USER` | SSH user (e.g. `debian`) |
 | `DEPLOY_SSH_KEY` | Private key (full PEM, including `-----BEGIN...`) |
 | `DEPLOY_SSH_PORT` | Optional; default `22` |
