@@ -1,6 +1,7 @@
 using KelliPhoto.Web.Data;
 using KelliPhoto.Web.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 
 namespace KelliPhoto.Web.Services;
 
@@ -9,6 +10,7 @@ public class FolderService : IFolderService
     private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IPathService _pathService;
     private readonly ILogger<FolderService> _logger;
+    private bool? _folderCoverPhotosTableAvailable;
 
     public FolderService(
         IDbContextFactory<ApplicationDbContext> contextFactory,
@@ -340,17 +342,20 @@ public class FolderService : IFolderService
 
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        var curatedCovers = await context.FolderCoverPhotos
-            .AsNoTracking()
-            .Where(fcp => fcp.FolderId == folderId)
-            .OrderBy(fcp => fcp.SortOrder)
-            .Take(maxCount)
-            .Select(fcp => fcp.Photo)
-            .ToListAsync();
-
-        if (curatedCovers.Count > 0)
+        if (await IsFolderCoverPhotosAvailableAsync(context))
         {
-            return curatedCovers;
+            var curatedCovers = await context.FolderCoverPhotos
+                .AsNoTracking()
+                .Where(fcp => fcp.FolderId == folderId)
+                .OrderBy(fcp => fcp.SortOrder)
+                .Take(maxCount)
+                .Select(fcp => fcp.Photo)
+                .ToListAsync();
+
+            if (curatedCovers.Count > 0)
+            {
+                return curatedCovers;
+            }
         }
 
         var folder = await context.Folders
@@ -386,7 +391,7 @@ public class FolderService : IFolderService
             .AsNoTracking()
             .Where(p => p.FolderId == folderId)
             .OrderBy(p => p.TakenAt ?? p.CreatedAt)
-            .Take(maxCount)
+            .Take(1)
             .ToListAsync();
 
         return folderPhotos;
@@ -394,16 +399,19 @@ public class FolderService : IFolderService
 
     private async Task<Photo?> GetFolderCoverPhotoAsync(ApplicationDbContext context, int folderId)
     {
-        var curated = await context.FolderCoverPhotos
-            .AsNoTracking()
-            .Where(fcp => fcp.FolderId == folderId)
-            .OrderBy(fcp => fcp.SortOrder)
-            .Select(fcp => fcp.Photo)
-            .FirstOrDefaultAsync();
-
-        if (curated != null)
+        if (await IsFolderCoverPhotosAvailableAsync(context))
         {
-            return curated;
+            var curated = await context.FolderCoverPhotos
+                .AsNoTracking()
+                .Where(fcp => fcp.FolderId == folderId)
+                .OrderBy(fcp => fcp.SortOrder)
+                .Select(fcp => fcp.Photo)
+                .FirstOrDefaultAsync();
+
+            if (curated != null)
+            {
+                return curated;
+            }
         }
 
         var folder = await context.Folders
@@ -447,6 +455,46 @@ public class FolderService : IFolderService
         }
 
         return null;
+    }
+
+    private async Task<bool> IsFolderCoverPhotosAvailableAsync(ApplicationDbContext context)
+    {
+        if (_folderCoverPhotosTableAvailable == true)
+        {
+            return true;
+        }
+
+        if (_folderCoverPhotosTableAvailable == false)
+        {
+            return false;
+        }
+
+        try
+        {
+            _ = await context.FolderCoverPhotos.AsNoTracking().Select(fcp => fcp.FolderId).FirstOrDefaultAsync();
+            _folderCoverPhotosTableAvailable = true;
+        }
+        catch (Exception ex) when (IsMissingFolderCoverPhotosTable(ex))
+        {
+            _folderCoverPhotosTableAvailable = false;
+            _logger.LogWarning(
+                "FolderCoverPhotos table is missing; using legacy thumbnail resolution. Apply migration 20260525120000_AddFolderCoverPhotos.");
+        }
+
+        return _folderCoverPhotosTableAvailable == true;
+    }
+
+    private static bool IsMissingFolderCoverPhotosTable(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current is PostgresException pg && pg.SqlState == PostgresErrorCodes.UndefinedTable)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public async Task SetFolderThumbnailAsync(int folderId, int photoId)

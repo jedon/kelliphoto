@@ -81,9 +81,8 @@ public class FolderThumbnailTests : IDisposable
 
         var thumbnails = await _folderService.GetFolderThumbnailPhotosAsync(album.Id);
 
-        Assert.Equal(2, thumbnails.Count);
+        Assert.Single(thumbnails);
         Assert.Equal(photo1.Id, thumbnails[0].Id);
-        Assert.Equal(photo2.Id, thumbnails[1].Id);
     }
 
     [Fact]

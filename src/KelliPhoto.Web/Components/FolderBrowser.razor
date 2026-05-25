@@ -22,7 +22,46 @@
                 <span class="folder-hidden-badge">Hidden</span>
             }
         }
-        @RenderFolderThumbnail(folder.Id, folder.Name)
+        @{
+            var thumbnails = FolderThumbnails.GetValueOrDefault(folder.Id) ?? Array.Empty<Photo>();
+        }
+        @if (thumbnails.Count >= 2)
+        {
+            <div class="folder-thumbnail-grid">
+                @for (var i = 0; i < 4; i++)
+                {
+                    <div class="folder-thumbnail-grid-cell">
+                        @if (i < thumbnails.Count)
+                        {
+                            <img src="/api/images/thumbnail/@thumbnails[i].Id?size=150"
+                                 alt="@folder.Name"
+                                 loading="lazy"
+                                 draggable="false"
+                                 oncontextmenu="return false;" />
+                        }
+                    </div>
+                }
+            </div>
+        }
+        else if (thumbnails.Count == 1)
+        {
+            <img src="/api/images/thumbnail/@thumbnails[0].Id?size=300"
+                 alt="@folder.Name"
+                 class="folder-thumbnail"
+                 loading="lazy"
+                 draggable="false"
+                 oncontextmenu="return false;"
+                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+            <div class="folder-icon-fallback" style="display: none;">
+                <i class="bi bi-folder"></i>
+            </div>
+        }
+        else
+        {
+            <div class="folder-icon-fallback">
+                <i class="bi bi-folder"></i>
+            </div>
+        }
         <div class="card-body text-center">
             <p class="card-text">@folder.Name</p>
         </div>
@@ -393,7 +432,57 @@
     private async Task LoadFolderThumbnailsAsync(List<Folder> folders)
     {
         FolderThumbnails.Clear();
-        
+        await PopulateFolderThumbnailsAsync(folders);
+
+        var foldersToScan = new List<Folder>();
+        foreach (var folder in folders)
+        {
+            if (FolderThumbnails.TryGetValue(folder.Id, out var thumbnails) && thumbnails.Count > 0)
+            {
+                continue;
+            }
+
+            try
+            {
+                if (await PhotoService.NeedsFolderScanAsync(folder.Id, folder.Path))
+                {
+                    foldersToScan.Add(folder);
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to check scan status for folder {FolderId}", folder.Id);
+            }
+        }
+
+        if (foldersToScan.Count == 0)
+        {
+            return;
+        }
+
+        Logger.LogInformation(
+            "Scanning {Count} folder(s) so album thumbnails can be generated",
+            foldersToScan.Count);
+
+        foreach (var folder in foldersToScan)
+        {
+            try
+            {
+                await PhotoService.ScanPhotosInFolderBatchedAsync(
+                    folder.Id, folder.Path, ProgressService, batchSize: 400);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to scan folder {FolderId} for thumbnails", folder.Id);
+            }
+        }
+
+        await PopulateFolderThumbnailsAsync(foldersToScan);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PopulateFolderThumbnailsAsync(List<Folder> folders)
+    {
         foreach (var folder in folders)
         {
             try
@@ -426,67 +515,4 @@
         }
     }
 
-    private RenderFragment RenderFolderThumbnail(int folderId, string folderName) => builder =>
-    {
-        var thumbnails = FolderThumbnails.GetValueOrDefault(folderId) ?? Array.Empty<Photo>();
-
-        if (thumbnails.Count >= 2)
-        {
-            builder.OpenElement(0, "div");
-            builder.AddAttribute(1, "class", "folder-thumbnail-grid");
-
-            for (var i = 0; i < 4; i++)
-            {
-                builder.OpenElement(2, "div");
-                builder.AddAttribute(3, "class", "folder-thumbnail-grid-cell");
-
-                if (i < thumbnails.Count)
-                {
-                    var photo = thumbnails[i];
-                    builder.OpenElement(4, "img");
-                    builder.AddAttribute(5, "src", $"/api/images/thumbnail/{photo.Id}?size=300");
-                    builder.AddAttribute(6, "alt", folderName);
-                    builder.AddAttribute(7, "loading", "lazy");
-                    builder.AddAttribute(8, "draggable", "false");
-                    builder.AddAttribute(9, "oncontextmenu", "return false;");
-                    builder.CloseElement();
-                }
-
-                builder.CloseElement();
-            }
-
-            builder.CloseElement();
-            return;
-        }
-
-        if (thumbnails.Count == 1)
-        {
-            var photo = thumbnails[0];
-            builder.OpenElement(10, "img");
-            builder.AddAttribute(11, "src", $"/api/images/thumbnail/{photo.Id}?size=300");
-            builder.AddAttribute(12, "alt", folderName);
-            builder.AddAttribute(13, "class", "folder-thumbnail");
-            builder.AddAttribute(14, "loading", "lazy");
-            builder.AddAttribute(15, "draggable", "false");
-            builder.AddAttribute(16, "oncontextmenu", "return false;");
-            builder.AddAttribute(17, "onerror", "this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';");
-            builder.CloseElement();
-
-            builder.OpenElement(18, "div");
-            builder.AddAttribute(19, "class", "folder-icon-fallback");
-            builder.AddAttribute(20, "style", "display: none;");
-            builder.OpenElement(21, "i");
-            builder.AddAttribute(22, "class", "bi bi-folder");
-            builder.CloseElement();
-            builder.CloseElement();
-            return;
-        }
-
-        builder.OpenElement(23, "div");
-        builder.AddAttribute(24, "class", "folder-icon-fallback");
-        builder.OpenElement(25, "i");
-        builder.AddAttribute(26, "class", "bi bi-folder");
-        builder.CloseElement();
-        builder.CloseElement();
-    };
 }

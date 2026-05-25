@@ -1,10 +1,13 @@
+using KelliPhoto.Web.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace KelliPhoto.Web.Migrations
 {
-    /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20260525120000_AddFolderCoverPhotos")]
     public partial class AddFolderCoverPhotos : Migration
     {
         /// <inheritdoc />
