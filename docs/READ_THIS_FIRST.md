@@ -19,7 +19,7 @@ cd ~/kelli.photo
 
 # Apply migrations to Docker PostgreSQL
 PGPASSWORD='!kelliphoto13!' psql \
-  -h 192.168.10.150 \
+  -h 142.4.216.160 \
   -p 15432 \
   -U kelli_photo_app \
   -d kelli_photo \
@@ -84,7 +84,7 @@ These were created before discovering the database sharing issue:
 ```bash
 # On production server
 cd ~/kelli.photo
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
 
@@ -110,7 +110,7 @@ dotnet ef database update
 1. **Verify your server setup**
    ```powershell
    nslookup postgres.darklingdesign.com
-   nslookup 192.168.10.150
+   nslookup 142.4.216.160
    # Are they the same IP?
    ```
 

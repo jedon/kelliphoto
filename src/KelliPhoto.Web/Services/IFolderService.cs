@@ -12,6 +12,8 @@ public interface IFolderService
     Task<Photo?> GetFolderThumbnailAsync(int folderId);
     Task<IReadOnlyList<Photo>> GetFolderThumbnailPhotosAsync(int folderId, int maxCount = 4);
     Task SetFolderThumbnailAsync(int folderId, int photoId);
+    Task<bool> IsPhotoValidForFolderCoverAsync(int folderId, int photoId);
+    Task<IReadOnlyList<Photo>> GetPhotosForCoverPickerAsync(int folderId, int maxCount = 120);
     Task<IReadOnlyList<Photo>> GetFolderCoverPhotosAsync(int folderId);
     Task SetFolderCoverPhotosAsync(int folderId, IReadOnlyList<int> photoIds);
     Task ClearFolderCoverPhotosAsync(int folderId);

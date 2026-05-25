@@ -10,6 +10,7 @@
 }
 
 .photo-item {
+    position: relative;
     display: inline-block;
     width: 100%;
     margin-bottom: 1rem;
@@ -17,6 +18,83 @@
     transition: opacity 0.2s, transform 0.2s;
     break-inside: avoid;
     page-break-inside: avoid;
+}
+
+.photo-item-edit {
+    cursor: default;
+}
+
+.photo-item-edit:hover {
+    transform: none;
+}
+
+.photo-cover-selected .photo-placeholder {
+    border-color: #D4AF37;
+    box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.5);
+}
+
+.photo-item-hidden {
+    opacity: 0.65;
+}
+
+.photo-item-hidden .photo-placeholder img {
+    filter: grayscale(40%);
+}
+
+.photo-edit-overlay {
+    position: absolute;
+    top: 0.5rem;
+    left: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+    background: rgba(0, 0, 0, 0.75);
+    border: 1px solid #D4AF37;
+    border-radius: 4px;
+    padding: 0.35rem 0.5rem;
+}
+
+.photo-visibility-switch {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.photo-visibility-switch .form-check-label {
+    color: #D4AF37;
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+.photo-cover-btn {
+    background: #333;
+    color: #D4AF37;
+    border: 1px solid #D4AF37;
+}
+
+.photo-cover-btn.active,
+.photo-cover-btn:hover {
+    background: #D4AF37;
+    color: #1a1a1a;
+}
+
+.photo-hidden-badge {
+    position: absolute;
+    bottom: 0.5rem;
+    right: 0.5rem;
+    z-index: 2;
+    background: rgba(80, 80, 80, 0.9);
+    color: #fff;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
 }
 
 .photo-item:hover {

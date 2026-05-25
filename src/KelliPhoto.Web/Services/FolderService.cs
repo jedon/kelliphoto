@@ -459,16 +459,15 @@ public class FolderService : IFolderService
             throw new ArgumentException($"Folder with ID {folderId} not found", nameof(folderId));
         }
 
-        // Verify the photo belongs to this folder
         var photo = await context.Photos.FindAsync(photoId);
         if (photo == null)
         {
             throw new ArgumentException($"Photo with ID {photoId} not found", nameof(photoId));
         }
 
-        if (photo.FolderId != folderId)
+        if (!await IsPhotoValidForFolderCoverAsync(context, folderId, photo.FolderId))
         {
-            throw new ArgumentException($"Photo {photoId} does not belong to folder {folderId}");
+            throw new ArgumentException($"Photo {photoId} does not belong to folder {folderId} or its subfolders.");
         }
 
         folder.ThumbnailPhotoId = photoId;
@@ -476,6 +475,130 @@ public class FolderService : IFolderService
 
         await SyncLegacyThumbnailToCoverPhotosAsync(context, folderId);
     }
+
+    public async Task<bool> IsPhotoValidForFolderCoverAsync(int folderId, int photoId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var photoFolderId = await context.Photos
+            .AsNoTracking()
+            .Where(p => p.Id == photoId)
+            .Select(p => (int?)p.FolderId)
+            .FirstOrDefaultAsync();
+
+        if (photoFolderId == null)
+        {
+            return false;
+        }
+
+        return await IsPhotoValidForFolderCoverAsync(context, folderId, photoFolderId.Value);
+    }
+
+    public async Task<IReadOnlyList<Photo>> GetPhotosForCoverPickerAsync(int folderId, int maxCount = 120)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var folderRows = await context.Folders
+            .AsNoTracking()
+            .Select(f => new FolderRow(f.Id, f.ParentId, f.Name))
+            .ToListAsync();
+
+        var descendantIds = GetDescendantFolderIds(folderRows, folderId);
+        var orderedChildFolderIds = folderRows
+            .Where(f => descendantIds.Contains(f.Id))
+            .OrderBy(f => f.Name)
+            .Select(f => f.Id)
+            .ToList();
+
+        var orderedFolderIds = new List<int> { folderId };
+        orderedFolderIds.AddRange(orderedChildFolderIds);
+
+        var photos = await context.Photos
+            .AsNoTracking()
+            .Include(p => p.Folder)
+            .Where(p => orderedFolderIds.Contains(p.FolderId))
+            .ToListAsync();
+
+        var photosByFolder = photos.GroupBy(p => p.FolderId).ToDictionary(g => g.Key, g => g.ToList());
+        var result = new List<Photo>();
+
+        foreach (var fid in orderedFolderIds)
+        {
+            if (!photosByFolder.TryGetValue(fid, out var folderPhotos))
+            {
+                continue;
+            }
+
+            foreach (var photo in folderPhotos.OrderBy(p => p.TakenAt ?? DateTime.MaxValue).ThenBy(p => p.Id))
+            {
+                result.Add(photo);
+                if (result.Count >= maxCount)
+                {
+                    return result;
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static async Task<bool> IsPhotoValidForFolderCoverAsync(
+        ApplicationDbContext context,
+        int folderId,
+        int photoFolderId)
+    {
+        if (photoFolderId == folderId)
+        {
+            return true;
+        }
+
+        var folderRows = await context.Folders
+            .AsNoTracking()
+            .Select(f => new FolderRow(f.Id, f.ParentId, f.Name))
+            .ToListAsync();
+
+        var descendants = GetDescendantFolderIds(folderRows, folderId);
+        return descendants.Contains(photoFolderId);
+    }
+
+    private static HashSet<int> GetDescendantFolderIds(IReadOnlyList<FolderRow> folders, int rootFolderId)
+    {
+        var childrenByParent = folders
+            .Where(f => f.ParentId.HasValue)
+            .GroupBy(f => f.ParentId!.Value)
+            .ToDictionary(g => g.Key, g => g.Select(f => f.Id).ToList());
+
+        var descendants = new HashSet<int>();
+        var queue = new Queue<int>();
+
+        if (childrenByParent.TryGetValue(rootFolderId, out var directChildren))
+        {
+            foreach (var childId in directChildren)
+            {
+                queue.Enqueue(childId);
+            }
+        }
+
+        while (queue.Count > 0)
+        {
+            var id = queue.Dequeue();
+            if (!descendants.Add(id))
+            {
+                continue;
+            }
+
+            if (childrenByParent.TryGetValue(id, out var grandchildren))
+            {
+                foreach (var grandchildId in grandchildren)
+                {
+                    queue.Enqueue(grandchildId);
+                }
+            }
+        }
+
+        return descendants;
+    }
+
+    private sealed record FolderRow(int Id, int? ParentId, string Name);
 
     public async Task<IReadOnlyList<Photo>> GetFolderCoverPhotosAsync(int folderId)
     {
@@ -519,10 +642,10 @@ public class FolderService : IFolderService
 
             foreach (var photo in photos)
             {
-                if (photo.FolderId != folderId)
+                if (!await IsPhotoValidForFolderCoverAsync(context, folderId, photo.FolderId))
                 {
                     throw new ArgumentException(
-                        $"Photo {photo.Id} does not belong to folder {folderId}.",
+                        $"Photo {photo.Id} does not belong to folder {folderId} or its subfolders.",
                         nameof(photoIds));
                 }
             }

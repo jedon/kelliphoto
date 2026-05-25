@@ -75,7 +75,7 @@ There are several approaches:
 # On your production server
 cd ~
 curl -O https://raw.githubusercontent.com/yourrepo/kelli.photo/main/complete-migration.sql
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
 
@@ -92,7 +92,7 @@ cd /path/to/kelli.photo
 ```bash
 # From your Windows machine (if you have psql)
 cd G:\Programming\kelli.photo
-$env:PGPASSWORD='!kelliphoto13!'; psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+$env:PGPASSWORD='!kelliphoto13!'; psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 
 # Then SSH to server and restart
 ssh your-server docker restart kelliphoto-web
@@ -208,7 +208,7 @@ All of these are ready to use RIGHT NOW to fix your production site.
 
 ```bash
 # Check tables exist
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo \
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo \
   -c "\dt"
 
 # Should show:
@@ -216,7 +216,7 @@ PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -
 # - Folders, Photos, Thumbnails
 
 # Check migrations were recorded
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo \
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo \
   -c "SELECT * FROM \"__EFMigrationsHistory\";"
 
 # Should show both migrations applied

@@ -17,7 +17,7 @@
 │  Production (kelli.photo)           │                        │
 │  ├─ Docker Container                │                        │
 │  ├─ kelliphoto-web                  │                        │
-│  └─ Connects to: 192.168.10.150:15432 (maybe same server?)  │
+│  └─ Connects to: 142.4.216.160:15432 (maybe same server?)  │
 │     └─ Database: kelli_photo  ◄─────┘                       │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -109,7 +109,7 @@
 ```bash
 # SSH to production server
 cd ~/kelli.photo
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 \
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 \
   -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
@@ -131,7 +131,7 @@ dotnet ef database update
 ```powershell
 # Check if servers are same or different
 nslookup postgres.darklingdesign.com
-nslookup 192.168.10.150
+nslookup 142.4.216.160
 ```
 
 **If same IP:** Follow additional separation steps in `CRITICAL_DATABASE_SEPARATION.md`  

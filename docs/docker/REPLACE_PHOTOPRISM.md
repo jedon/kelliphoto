@@ -88,7 +88,7 @@ docker start <photoprism-container-name>
 
 ## Key Changes
 
-- **Port**: Changed from `127.0.0.1:2342` (PhotoPrism) to `192.168.10.150:8080` (Kelli Photo Gallery)
+- **Port**: Changed from `127.0.0.1:2342` (PhotoPrism) to `142.4.216.160:8080` (Kelli Photo Gallery)
 - **Domain**: Same domain (`kelli.photo`) - no DNS changes needed
 - **SSL**: Uses existing Let's Encrypt certificates - no changes needed
 - **WebSocket**: Configured for Blazor Server SignalR (same as PhotoPrism had)

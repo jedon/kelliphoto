@@ -7,7 +7,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SQL_FILE="$REPO_ROOT/complete-migration.sql"
 
 echo "Applying database migrations to kelli.photo..."
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f "$SQL_FILE" && \
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f "$SQL_FILE" && \
 docker restart kelliphoto-web && \
 echo "" && \
 echo "✓ Done! Watching logs (press Ctrl+C to exit)..." && \

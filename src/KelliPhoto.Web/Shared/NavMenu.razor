@@ -7,12 +7,19 @@
     <NavLink href="/about">About</NavLink>
     <NavLink href="/contact">Contact</NavLink>
     <AuthorizeView>
-        <Authorized>
-            <NavLink href="/admin" class="admin-link">Admin</NavLink>
+        <Authorized Context="authContext">
+            <span class="nav-user" title="@authContext.User.Identity?.Name">@authContext.User.Identity?.Name</span>
+            <AuthorizeView Roles="Admin" Context="adminContext">
+                <NavLink href="/admin" class="admin-link">Admin</NavLink>
+            </AuthorizeView>
             <a href="/Identity/Account/Logout" class="nav-link">Logout</a>
         </Authorized>
         <NotAuthorized>
             <NavLink href="/Identity/Account/Login" class="nav-link">Login</NavLink>
+            @if (AllowRegistration)
+            {
+                <NavLink href="/Identity/Account/Register" class="nav-link">Register</NavLink>
+            }
         </NotAuthorized>
     </AuthorizeView>
 </nav>

@@ -1,5 +1,5 @@
 -- Run this SQL script on your PostgreSQL server to create the database and user
--- Connect as postgres user first: psql -h 192.168.10.150 -p 15432 -U postgres
+-- Connect as postgres user first: psql -h 142.4.216.160 -p 15432 -U postgres
 
 -- Create the database
 CREATE DATABASE kelli_photo;

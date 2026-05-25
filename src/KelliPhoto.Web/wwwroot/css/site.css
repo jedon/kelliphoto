@@ -50,6 +50,106 @@ a:hover {
     width: 100%;
 }
 
+/* Gallery admin edit mode */
+.gallery-edit-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    background: rgba(26, 26, 26, 0.95);
+    border: 1px solid #D4AF37;
+    border-radius: 4px;
+}
+
+.gallery-edit-toggle .form-check-label {
+    color: #D4AF37;
+    font-weight: 500;
+}
+
+.gallery-cover-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 1rem;
+    margin-bottom: 1rem;
+    background: rgba(26, 26, 26, 0.85);
+    border: 1px solid rgba(212, 175, 55, 0.5);
+    border-radius: 4px;
+}
+
+.gallery-cover-count {
+    color: #D4AF37;
+    font-size: 0.9rem;
+}
+
+.gallery-cover-message {
+    font-size: 0.85rem;
+}
+
+.gallery-subfolder-covers {
+    margin: 0.75rem 0 1rem;
+    padding: 0.5rem 0.75rem;
+    background: rgba(17, 17, 17, 0.9);
+    border: 1px solid rgba(212, 175, 55, 0.35);
+    border-radius: 4px;
+}
+
+.gallery-subfolder-covers-label {
+    margin: 0 0 0.5rem;
+    font-size: 0.8rem;
+    color: rgba(212, 175, 55, 0.75);
+}
+
+.gallery-subfolder-covers-scroll {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding-bottom: 0.25rem;
+}
+
+.gallery-subfolder-cover-thumb {
+    flex: 0 0 auto;
+    width: 88px;
+    padding: 0;
+    border: 2px solid transparent;
+    border-radius: 4px;
+    background: #222;
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.gallery-subfolder-cover-thumb.selected {
+    border-color: #D4AF37;
+    box-shadow: 0 0 0 1px #D4AF37;
+}
+
+.gallery-subfolder-cover-thumb img {
+    display: block;
+    width: 88px;
+    height: 66px;
+    object-fit: cover;
+}
+
+.gallery-subfolder-cover-name {
+    display: block;
+    font-size: 0.65rem;
+    padding: 0.2rem 0.25rem;
+    color: #aaa;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.gallery-page.gallery-edit-active .folder-card-edit,
+.gallery-page.gallery-edit-active .photo-item-edit {
+    outline: 1px solid rgba(212, 175, 55, 0.25);
+}
+
 /*
  * Fallback masonry layout when scoped CSS bundle (KelliPhoto.Web.styles.css) fails to load in production.
  * Keeps multi-column flow inside .gallery-page even if component-scoped rules are missing.
@@ -326,6 +426,18 @@ img {
     background-color: #333;
 }
 
+.main-nav .nav-user {
+    margin-left: 1rem;
+    padding-left: 1rem;
+    border-left: 1px solid #333;
+    font-size: 0.8rem;
+    color: #888;
+    white-space: nowrap;
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .main-nav .admin-link,
 .main-nav .nav-link {
     margin-left: 1rem;
@@ -363,6 +475,12 @@ img {
 
     .main-nav a {
         font-size: 0.85rem;
+    }
+
+    .main-nav .nav-user {
+        margin-left: 0.5rem;
+        padding-left: 0.5rem;
+        max-width: 8rem;
     }
 
     .main-nav .admin-link,

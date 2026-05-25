@@ -13,7 +13,7 @@ Website https://kelli.photo shows error:
 
 ```bash
 cd ~/kelli.photo
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 \
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 \
   -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
@@ -187,13 +187,13 @@ After fixing the immediate issue:
 
 ```bash
 # The fix
-cd ~/kelli.photo && PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql && docker restart kelliphoto-web
+cd ~/kelli.photo && PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql && docker restart kelliphoto-web
 
 # Check logs
 docker logs -f kelliphoto-web
 
 # Verify tables
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
 ```
 
 ---

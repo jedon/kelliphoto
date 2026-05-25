@@ -7,7 +7,7 @@
 ### Current Setup (WRONG):
 
 - **Local Dev**: `postgres.darklingdesign.com:5444` → `kelli_photo` database
-- **Production**: `postgres.darklingdesign.com:5444` (via 192.168.10.150:15432) → `kelli_photo` database
+- **Production**: `postgres.darklingdesign.com:5444` (via 142.4.216.160:15432) → `kelli_photo` database
 
 **This is EXTREMELY DANGEROUS because:**
 
@@ -26,7 +26,7 @@ You need **separate databases** for each environment:
 
 ```
 Local Dev     → postgres.darklingdesign.com:5444 → kelli_photo_dev
-Production    → 192.168.10.150:15432 (Docker)    → kelli_photo_prod
+Production    → 142.4.216.160:15432 (Docker)    → kelli_photo_prod
 ```
 
 Or even better:
@@ -115,7 +115,7 @@ Keep using `postgres.darklingdesign.com` but use a different database name:
 ```yaml
 web:
   environment:
-    - ConnectionStrings__DefaultConnection=Host=192.168.10.150;Port=15432;Database=kelli_photo_prod;Username=kelli_photo_app;Password=!kelliphoto13!
+    - ConnectionStrings__DefaultConnection=Host=142.4.216.160;Port=15432;Database=kelli_photo_prod;Username=kelli_photo_app;Password=!kelliphoto13!
 ```
 
 ---
@@ -195,7 +195,7 @@ docker exec -i kelliphoto-postgres psql -U kelli_photo_app -d kelli_photo < comp
 
 # Or use the external access:
 PGPASSWORD='!kelliphoto13!' psql \
-  -h 192.168.10.150 \
+  -h 142.4.216.160 \
   -p 15432 \
   -U kelli_photo_app \
   -d kelli_photo \
@@ -237,7 +237,7 @@ docker logs kelliphoto-web | grep "Host=postgres"
 psql -h postgres.darklingdesign.com -p 5444 -U kelli_photo_app -d kelli_photo_dev -c "SELECT COUNT(*) FROM \"Folders\";"
 
 # Production:
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT COUNT(*) FROM \"Folders\";"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT COUNT(*) FROM \"Folders\";"
 ```
 
 ---
@@ -255,7 +255,7 @@ postgres:
 
 But somewhere the connection got mixed up, possibly because:
 
-1. The external PostgreSQL access was set up (port 15432 on 192.168.10.150)
+1. The external PostgreSQL access was set up (port 15432 on 142.4.216.160)
 2. Both local and production pointed to the same underlying server
 3. The Docker network wasn't properly isolated
 

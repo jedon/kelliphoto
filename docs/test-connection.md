@@ -30,7 +30,7 @@ dotnet ef database update
 If you can SSH into your server, test from there:
 ```bash
 # From the server
-psql -h 192.168.10.150 -p 15432 -U postgres -d postgres
+psql -h 142.4.216.160 -p 15432 -U postgres -d postgres
 # or
 psql -h localhost -p 15432 -U postgres -d postgres
 ```

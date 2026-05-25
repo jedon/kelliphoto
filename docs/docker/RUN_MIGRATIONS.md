@@ -23,7 +23,7 @@ If your server has .NET SDK installed:
 
 ```bash
 # Set connection string
-export ConnectionStrings__DefaultConnection="Host=192.168.10.150;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!"
+export ConnectionStrings__DefaultConnection="Host=142.4.216.160;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!"
 
 # Run migrations
 cd /path/to/kelli.photo/src/KelliPhoto.Web
@@ -40,7 +40,7 @@ cd src/KelliPhoto.Web
 dotnet ef migrations script -o migration.sql
 
 # Copy migration.sql to server and run:
-psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f migration.sql
+psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f migration.sql
 ```
 
 ### Option 4: Create Migration Container (Advanced)
@@ -50,7 +50,7 @@ Create a temporary container with SDK just for migrations:
 ```bash
 docker run --rm -it \
   -v /path/to/kelli.photo:/src \
-  -e ConnectionStrings__DefaultConnection="Host=192.168.10.150;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!" \
+  -e ConnectionStrings__DefaultConnection="Host=142.4.216.160;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!" \
   mcr.microsoft.com/dotnet/sdk:10.0 \
   bash -c "cd /src/src/KelliPhoto.Web && dotnet ef database update"
 ```
@@ -68,7 +68,7 @@ docker run --rm -it \
 2. **Copy to server and run:**
    ```bash
    # On server
-   psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f migration.sql
+   psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f migration.sql
    ```
 
 3. **Restart the web container:**

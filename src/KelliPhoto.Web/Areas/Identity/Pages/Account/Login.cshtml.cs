@@ -1,9 +1,11 @@
 using System.ComponentModel.DataAnnotations;
+using KelliPhoto.Web.Configuration;
 using KelliPhoto.Web.Services;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 
 namespace KelliPhoto.Web.Areas.Identity.Pages.Account;
 
@@ -11,14 +13,17 @@ public class LoginModel : PageModel
 {
     private readonly SignInManager<IdentityUser> _signInManager;
     private readonly ILogger<LoginModel> _logger;
+    private readonly IdentitySettings _identitySettings;
 
     public LoginModel(
         SignInManager<IdentityUser> signInManager,
         ILogger<LoginModel> logger,
-        IAppVersionService appVersion)
+        IAppVersionService appVersion,
+        IOptions<IdentitySettings> identityOptions)
     {
         _signInManager = signInManager;
         _logger = logger;
+        _identitySettings = identityOptions.Value;
         AppVersion = appVersion.DisplayVersion;
         VersionTooltip = appVersion.BuildTooltip;
     }
@@ -30,6 +35,8 @@ public class LoginModel : PageModel
     public InputModel Input { get; set; } = new();
 
     public string? ReturnUrl { get; set; }
+
+    public bool AllowRegistration { get; set; }
 
     [TempData]
     public string? ErrorMessage { get; set; }
@@ -60,12 +67,14 @@ public class LoginModel : PageModel
         // Clear the existing external cookie to ensure a clean login process
         await HttpContext.SignOutAsync(IdentityConstants.ExternalScheme);
 
+        AllowRegistration = _identitySettings.AllowRegistration;
         ReturnUrl = returnUrl;
     }
 
     public async Task<IActionResult> OnPostAsync(string? returnUrl = null)
     {
         returnUrl ??= Url.Content("~/");
+        AllowRegistration = _identitySettings.AllowRegistration;
 
         if (ModelState.IsValid)
         {

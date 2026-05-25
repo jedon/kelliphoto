@@ -71,7 +71,7 @@ The `.github/workflows/docker-build.yml` will automatically:
 sudo iptables -t nat -L PREROUTING -v --line-numbers | grep 5432
 
 # If not, add it:
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
+sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 142.4.216.160:15432
 
 # Make persistent:
 sudo apt-get install -y iptables-persistent
@@ -81,7 +81,7 @@ sudo netfilter-persistent save
 ### Access the application:
 - Web UI: `http://your-server:8080`
 - PostgreSQL (external): `postgres.darklingdesign.com:5432`
-- PostgreSQL (internal): `192.168.10.150:15432`
+- PostgreSQL (internal): `142.4.216.160:15432`
 
 ## Portainer Tips
 

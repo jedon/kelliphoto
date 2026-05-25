@@ -5,7 +5,7 @@
 Your **local development** and **production deployment** are using the **SAME DATABASE**!
 
 - Local Dev: `postgres.darklingdesign.com:5444` → `kelli_photo`
-- Production: `postgres.darklingdesign.com:5444` (via 192.168.10.150) → `kelli_photo`
+- Production: `postgres.darklingdesign.com:5444` (via 142.4.216.160) → `kelli_photo`
 
 **This is why tables don't exist** - and it's also a critical configuration problem.
 
@@ -71,7 +71,7 @@ cd ~/kelli.photo
 
 # Apply to the Docker PostgreSQL (which is separate from the external one)
 PGPASSWORD='!kelliphoto13!' psql \
-  -h 192.168.10.150 \
+  -h 142.4.216.160 \
   -p 15432 \
   -U kelli_photo_app \
   -d kelli_photo \
@@ -104,7 +104,7 @@ docker restart kelliphoto-web
 └────────────────────────────────────────────────┘
 
 ┌────────────────────────────────────────────────┐
-│ Production Server (192.168.10.150)             │
+│ Production Server (142.4.216.160)             │
 │ └─ Docker Container: kelliphoto-postgres       │
 │    └─ kelli_photo                              │
 │       └─ Used by production only ✅            │
@@ -135,9 +135,9 @@ web:
 **`Host=postgres`** means it connects to the Docker container, **NOT** the external server!
 
 However, you also set up external access to this Docker PostgreSQL (via iptables), which maps:
-- `192.168.10.150:15432` → Docker container's port 5432
+- `142.4.216.160:15432` → Docker container's port 5432
 
-So when you connect from outside using `192.168.10.150:15432`, you're actually connecting to the **Docker PostgreSQL**, not `postgres.darklingdesign.com`.
+So when you connect from outside using `142.4.216.160:15432`, you're actually connecting to the **Docker PostgreSQL**, not `postgres.darklingdesign.com`.
 
 ### So the actual setup is:
 
@@ -148,7 +148,7 @@ Local Dev:
 
 Production:
   ├─ Docker Container (kelliphoto-postgres)
-  ├─ Accessible externally at: 192.168.10.150:15432
+  ├─ Accessible externally at: 142.4.216.160:15432
   └─ Database: kelli_photo
 ```
 
@@ -161,13 +161,13 @@ Production:
 Actually, looking more carefully:
 
 1. **`postgres.darklingdesign.com:5444`** is your central PostgreSQL server
-2. **Docker PostgreSQL on 192.168.10.150** is a separate instance
+2. **Docker PostgreSQL on 142.4.216.160** is a separate instance
 
 The issue isn't that they're the same database - they're on **different servers**. The issue is that your local dev's `appsettings.Development.json` uses port 5444, but I see you also have external access set up to port 15432...
 
 Let me check if there's port forwarding that makes them the same:
 
-**If `postgres.darklingdesign.com` IS `192.168.10.150`**, then:
+**If `postgres.darklingdesign.com` IS `142.4.216.160`**, then:
 - Port 5444 might forward to Docker PostgreSQL
 - Port 15432 definitely goes to Docker PostgreSQL
 - You have ONE PostgreSQL (in Docker), not two
@@ -187,7 +187,7 @@ Let me check if there's port forwarding that makes them the same:
 ping postgres.darklingdesign.com
 
 # Compare to:
-ping 192.168.10.150
+ping 142.4.216.160
 
 # Are they the same IP?
 ```
@@ -213,7 +213,7 @@ ping 192.168.10.150
 ```powershell
 # On Windows
 nslookup postgres.darklingdesign.com
-nslookup 192.168.10.150
+nslookup 142.4.216.160
 ```
 
 ### 2. Option A: If Different Servers (Easy)
@@ -237,7 +237,7 @@ Follow the 3-step process at the top of this document.
 ## Quick Decision Tree
 
 ```
-Are postgres.darklingdesign.com and 192.168.10.150 the same server?
+Are postgres.darklingdesign.com and 142.4.216.160 the same server?
 │
 ├─ YES → Rename database to kelli_photo_dev for local
 │         Create new kelli_photo for production
@@ -269,7 +269,7 @@ psql -h postgres.darklingdesign.com -p 5444 -U kelli_photo_app -d kelli_photo_de
   -c "INSERT INTO \"Folders\" (\"Name\", \"Path\", \"CreatedAt\") VALUES ('TEST_LOCAL', '/test', NOW());"
 
 # Check it doesn't appear in production
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo \
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo \
   -c "SELECT * FROM \"Folders\" WHERE \"Name\" = 'TEST_LOCAL';"
 # Should return 0 rows
 ```

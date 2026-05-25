@@ -3,7 +3,7 @@
 ## PostgreSQL Connection
 
 The PostgreSQL server is at:
-- Internal IP: `192.168.10.150:15432`
+- Internal IP: `142.4.216.160:15432`
 - External domain: `postgres.darklingdesign.com:5432` (requires iptables port forwarding)
 
 ## iptables Port Forwarding
@@ -11,7 +11,7 @@ The PostgreSQL server is at:
 To enable external access to PostgreSQL, you need a PREROUTING rule:
 
 ```bash
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
+sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 142.4.216.160:15432
 ```
 
 To check if the rule exists:
@@ -32,14 +32,14 @@ sudo netfilter-persistent save
 
 1. SSH into your server and connect to PostgreSQL:
    ```bash
-   psql -h 192.168.10.150 -p 15432 -U postgres
+   psql -h 142.4.216.160 -p 15432 -U postgres
    # or if PostgreSQL is on the same server:
    psql -h localhost -p 15432 -U postgres
    ```
 
 2. Run the SQL script to create database and user:
    ```bash
-   psql -h 192.168.10.150 -p 15432 -U postgres -f create-database.sql
+   psql -h 142.4.216.160 -p 15432 -U postgres -f create-database.sql
    ```
    Or manually run the SQL commands from `create-database.sql`
 
@@ -61,7 +61,7 @@ dotnet ef database update
 
 ### Internal Network (if on same network/VPN):
 ```
-Host=192.168.10.150;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer
+Host=142.4.216.160;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!;SSL Mode=Prefer
 ```
 
 ### External Access (requires iptables rule):

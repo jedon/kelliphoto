@@ -35,6 +35,18 @@
     background-color: #333;
 }
 
+.main-nav .nav-user {
+    margin-left: 1rem;
+    padding-left: 1rem;
+    border-left: 1px solid #333;
+    font-size: 0.8rem;
+    color: #888;
+    white-space: nowrap;
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .main-nav .admin-link,
 .main-nav .nav-link {
     margin-left: 1rem;
@@ -59,6 +71,12 @@
 
     .main-nav ::deep a {
         font-size: 0.85rem;
+    }
+
+    .main-nav .nav-user {
+        margin-left: 0.5rem;
+        padding-left: 0.5rem;
+        max-width: 8rem;
     }
 
     .main-nav .admin-link,

@@ -44,7 +44,7 @@ mkdir -p ~/kelli-migration && cd ~/kelli-migration
 
 # 4. Apply the migration
 PGPASSWORD='!kelliphoto13!' psql \
-  -h 192.168.10.150 \
+  -h 142.4.216.160 \
   -p 15432 \
   -U kelli_photo_app \
   -d kelli_photo \

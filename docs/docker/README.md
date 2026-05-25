@@ -8,10 +8,10 @@ Since the PostgreSQL container will be on port 15432, update the iptables rule:
 
 ```bash
 # Remove old rule (if exists)
-sudo iptables -t nat -D PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
+sudo iptables -t nat -D PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 142.4.216.160:15432
 
 # Add new rule for kelliphoto-postgres
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
+sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 142.4.216.160:15432
 
 # Make it persistent
 sudo apt-get install -y iptables-persistent
@@ -36,7 +36,7 @@ docker-compose exec web dotnet ef database update
 
 - Web: http://your-server:8080
 - PostgreSQL (external): postgres.darklingdesign.com:5432
-- PostgreSQL (internal): 192.168.10.150:15432
+- PostgreSQL (internal): 142.4.216.160:15432
 
 ## Services
 

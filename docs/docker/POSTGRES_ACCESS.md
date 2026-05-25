@@ -14,7 +14,7 @@ The web container connects via Docker network using the service name:
 ### 2. From Host/Server
 Access from the Debian host where Docker is running:
 ```bash
-psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo
+psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo
 # Password: !kelliphoto13!
 ```
 
@@ -47,7 +47,7 @@ If you later need external access and can use a different external port:
 
 1. **Choose a different external port** (e.g., 5433):
    ```bash
-   sudo iptables -t nat -A PREROUTING -p tcp --dport 5433 -j DNAT --to-destination 192.168.10.150:15432
+   sudo iptables -t nat -A PREROUTING -p tcp --dport 5433 -j DNAT --to-destination 142.4.216.160:15432
    ```
 
 2. **Update connection string** to use the new external port:
@@ -64,7 +64,7 @@ Host=postgres;Port=5432;Database=kelli_photo;Username=kelli_photo_app;Password=!
 
 ### From Host
 ```
-Host=192.168.10.150;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!
+Host=142.4.216.160;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!
 ```
 
 ### From External (if you add port forwarding)

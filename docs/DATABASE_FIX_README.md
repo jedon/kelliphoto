@@ -16,7 +16,7 @@ git pull
 
 # Apply the migration
 PGPASSWORD='!kelliphoto13!' psql \
-  -h 192.168.10.150 \
+  -h 142.4.216.160 \
   -p 15432 \
   -U kelli_photo_app \
   -d kelli_photo \
@@ -62,7 +62,7 @@ Copy just the SQL file to your server:
 scp complete-migration.sql your-server:~/
 
 # Then on the server
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f ~/complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f ~/complete-migration.sql
 docker restart kelliphoto-web
 ```
 
@@ -87,10 +87,10 @@ sudo iptables -L INPUT -n | grep 15432
 ### "Still getting errors"
 ```bash
 # Check what tables exist
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
 
 # Check migrations
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT * FROM \"__EFMigrationsHistory\";"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT * FROM \"__EFMigrationsHistory\";"
 
 # View detailed logs
 docker logs kelliphoto-web | tail -50
@@ -126,7 +126,7 @@ git push
 # On production server
 cd ~/kelli.photo
 git pull
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
 

@@ -54,9 +54,9 @@ SHOW hba_file;
 
 ```bash
 # Test if you can reach PostgreSQL from Proxmox host
-telnet 192.168.10.150 15432
+telnet 142.4.216.160 15432
 # or
-nc -zv 192.168.10.150 15432
+nc -zv 142.4.216.160 15432
 ```
 
 ### 6. Check Docker network:

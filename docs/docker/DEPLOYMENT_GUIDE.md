@@ -28,7 +28,7 @@ This script will skip PostgreSQL port forwarding to avoid conflicts.
 
 ```bash
 # PostgreSQL port forwarding (ONLY if port 5432 is free)
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 192.168.10.150:15432
+sudo iptables -t nat -A PREROUTING -p tcp --dport 5432 -j DNAT --to-destination 142.4.216.160:15432
 
 # Make persistent
 sudo apt-get install -y iptables-persistent
@@ -38,7 +38,7 @@ sudo netfilter-persistent save
 ### PostgreSQL Access
 
 - **From web container**: Uses Docker network (`postgres:5432`) - automatic
-- **From host**: `psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo`
+- **From host**: `psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo`
 - **External access**: Not configured (to avoid conflicts)
 
 ## Step 2: Deploy in Portainer
@@ -145,7 +145,7 @@ sudo tail -f /var/log/nginx/kelliphoto-error.log
 
 ### Nginx 502 Bad Gateway
 - Check if web container is running: `docker ps | grep kelliphoto-web`
-- Verify port 8080 is accessible: `curl http://192.168.10.150:8080`
+- Verify port 8080 is accessible: `curl http://142.4.216.160:8080`
 - Check nginx error logs: `sudo tail -f /var/log/nginx/kelliphoto-error.log`
 
 ### Database connection fails

@@ -26,14 +26,14 @@ docker exec -it kelliphoto-web dotnet ef database update
 
 ### Step 2: Fix Nginx Configuration
 
-The nginx config is trying to connect to `192.168.10.150:8080`, but since the port is mapped to the host, use `127.0.0.1:8080`:
+The nginx config is trying to connect to `142.4.216.160:8080`, but since the port is mapped to the host, use `127.0.0.1:8080`:
 
 ```bash
 # Update nginx config
 sudo nano /etc/nginx/sites-available/kelli.photo
 
 # Change all instances of:
-# proxy_pass http://192.168.10.150:8080;
+# proxy_pass http://142.4.216.160:8080;
 # To:
 # proxy_pass http://127.0.0.1:8080;
 

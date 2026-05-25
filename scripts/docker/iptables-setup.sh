@@ -9,20 +9,20 @@ echo "Setting up iptables rules for Kelli Photo Gallery..."
 echo "ℹ PostgreSQL port forwarding"
 echo "   - Kelli Photo PostgreSQL runs on internal port 15432"
 echo "   - Web container connects via Docker network (no external access needed)"
-echo "   - To access from host: psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo"
+echo "   - To access from host: psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo"
 echo ""
 echo "To enable external access from dev machine (optional):"
-echo "   sudo iptables -t nat -A PREROUTING -p tcp --dport 5433 -j DNAT --to-destination 192.168.10.150:15432"
+echo "   sudo iptables -t nat -A PREROUTING -p tcp --dport 5433 -j DNAT --to-destination 142.4.216.160:15432"
 echo "   sudo netfilter-persistent save"
 echo ""
 
 # Web application port forwarding: External 80 -> Internal 8080 (optional, if you want HTTP on port 80)
 # Uncomment if you want to expose the web app on port 80 instead of 8080
-# sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 192.168.10.150:8080
+# sudo iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 142.4.216.160:8080
 
 # Web application port forwarding: External 443 -> Internal 8443 (optional, if you want HTTPS on port 443)
 # Uncomment if you want to expose the web app on port 443 instead of 8443
-# sudo iptables -t nat -A PREROUTING -p tcp --dport 443 -j DNAT --to-destination 192.168.10.150:8443
+# sudo iptables -t nat -A PREROUTING -p tcp --dport 443 -j DNAT --to-destination 142.4.216.160:8443
 
 # Make rules persistent
 if command -v netfilter-persistent &> /dev/null; then

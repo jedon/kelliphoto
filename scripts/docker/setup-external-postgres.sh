@@ -14,7 +14,7 @@ fi
 
 # External port (change if needed)
 EXTERNAL_PORT=5444
-DEBIAN_VM_IP=192.168.10.150
+DEBIAN_VM_IP=142.4.216.160
 DEBIAN_VM_PORT=15432
 
 echo "Architecture: Proxmox host → Debian VM ($DEBIAN_VM_IP) → Docker container"

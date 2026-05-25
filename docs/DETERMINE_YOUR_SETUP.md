@@ -7,7 +7,7 @@
 ```powershell
 # On your Windows machine
 nslookup postgres.darklingdesign.com
-ping 192.168.10.150
+ping 142.4.216.160
 ```
 
 **Compare the IP addresses:**
@@ -67,7 +67,7 @@ CREATE DATABASE kelli_photo;
 
 ```bash
 # On production server
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
 
@@ -78,7 +78,7 @@ docker restart kelliphoto-web
 ### Current Setup:
 ```
 Local Dev:       postgres.darklingdesign.com:5444
-Production:      192.168.10.150:15432 (Docker)
+Production:      142.4.216.160:15432 (Docker)
                  (Different servers, different PostgreSQL instances)
 ```
 
@@ -96,7 +96,7 @@ dotnet ef database update
 ```bash
 # On production server
 cd ~/kelli.photo
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
 
@@ -147,7 +147,7 @@ psql -h postgres.darklingdesign.com -p 5444 -U kelli_photo_app -d kelli_photo_de
 
 # Check it does NOT appear in production
 # On production server:
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT * FROM \"Folders\" WHERE \"Name\" = 'LOCAL_TEST';"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT * FROM \"Folders\" WHERE \"Name\" = 'LOCAL_TEST';"
 # Should return: (0 rows)
 ```
 
@@ -158,7 +158,7 @@ PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -
 psql -h postgres.darklingdesign.com -p 5444 -U kelli_photo_app -d kelli_photo_dev -c "SELECT COUNT(*) FROM \"Folders\";"
 
 # Production
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT COUNT(*) FROM \"Folders\";"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT COUNT(*) FROM \"Folders\";"
 
 # Should be different counts!
 ```
@@ -176,7 +176,7 @@ Write-Host "`nLocal PostgreSQL:"
 nslookup postgres.darklingdesign.com
 
 Write-Host "`nProduction Server:"
-Test-Connection 192.168.10.150 -Count 1
+Test-Connection 142.4.216.160 -Count 1
 
 Write-Host "`nAre they the same? Check the IPs above." -ForegroundColor Yellow
 ```
@@ -201,7 +201,7 @@ cd ~/kelli.photo
 
 # Apply migrations
 PGPASSWORD='!kelliphoto13!' psql \
-  -h 192.168.10.150 \
+  -h 142.4.216.160 \
   -p 15432 \
   -U kelli_photo_app \
   -d kelli_photo \

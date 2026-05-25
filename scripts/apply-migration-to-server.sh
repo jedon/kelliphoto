@@ -13,7 +13,7 @@ echo "=================================================="
 echo ""
 
 # Database connection details (from docker-compose.yml)
-DB_HOST="192.168.10.150"
+DB_HOST="142.4.216.160"
 DB_PORT="15432"
 DB_NAME="kelli_photo"
 DB_USER="kelli_photo_app"

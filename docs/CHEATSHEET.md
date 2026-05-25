@@ -4,7 +4,7 @@
 
 ```bash
 cd ~/kelli.photo
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
 
@@ -27,10 +27,10 @@ scp complete-migration.sql your-server:~/kelli.photo/
 docker logs kelliphoto-web | tail -20
 
 # Check tables
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
 
 # Check migrations
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT * FROM \"__EFMigrationsHistory\";"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "SELECT * FROM \"__EFMigrationsHistory\";"
 ```
 
 ## Common Commands
@@ -58,7 +58,7 @@ docker-compose down && docker-compose up -d
 ## Database Connection String
 
 ```
-Host=192.168.10.150;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!
+Host=142.4.216.160;Port=15432;Database=kelli_photo;Username=kelli_photo_app;Password=!kelliphoto13!
 ```
 
 ## Troubleshooting One-Liners
@@ -80,7 +80,7 @@ docker ps | grep postgres
 docker restart kelliphoto-postgres
 
 # Access database directly
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo
 ```
 
 ## URLs
@@ -95,6 +95,12 @@ PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -
 - Password: `Admin123!`
 
 (Change in `appsettings.json` under `Admin:Email` and `Admin:Password`)
+
+## Identity / users
+
+- `Identity:AllowRegistration` in `appsettings.json` (default `false`) — when false, Register is hidden and `/Identity/Account/Register` redirects to Login; create users in **Admin → Users**.
+- Development (`appsettings.Development.json`) sets `AllowRegistration: true` for local public sign-up testing.
+- Roles: `User` (regular accounts), `Admin` (gallery admin + Users tab). Seeded admin: `Admin:Email` / `Admin:Password`.
 
 ## File Quick Reference
 

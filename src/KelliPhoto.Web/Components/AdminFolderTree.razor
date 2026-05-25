@@ -1,0 +1,201 @@
+@using KelliPhoto.Web.Data.Models
+@inject IFolderService FolderService
+@inject ILogger<AdminFolderTree> Logger
+
+<div class="admin-folder-tree">
+    @if (isLoadingRoots)
+    {
+        <div class="text-muted small p-2">Loading folders…</div>
+    }
+    else if (!rootNodes.Any())
+    {
+        <div class="text-muted small p-2">No folders found.</div>
+    }
+    else
+    {
+        <ul class="admin-tree-root">
+            @foreach (var node in rootNodes)
+            {
+                <li>
+                    @RenderTreeNode(node)
+                </li>
+            }
+        </ul>
+    }
+</div>
+
+@code {
+    [Parameter] public int? SelectedFolderId { get; set; }
+    [Parameter] public EventCallback<int> SelectedFolderIdChanged { get; set; }
+    [Parameter] public bool IncludeHidden { get; set; } = true;
+
+    private readonly List<TreeNode> rootNodes = new();
+    private bool isLoadingRoots;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadRootsAsync();
+    }
+
+    private async Task LoadRootsAsync()
+    {
+        isLoadingRoots = true;
+        try
+        {
+            var roots = await FolderService.GetRootFoldersAsync(includeHidden: IncludeHidden);
+            if (roots.Count == 1 && await FolderService.FolderHasChildrenAsync(roots[0].Id, IncludeHidden))
+            {
+                roots = await FolderService.GetChildFoldersAsync(roots[0].Id, IncludeHidden);
+            }
+
+            rootNodes.Clear();
+            foreach (var folder in roots.OrderBy(f => f.Name))
+            {
+                rootNodes.Add(await CreateNodeAsync(folder));
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load admin folder tree roots");
+        }
+        finally
+        {
+            isLoadingRoots = false;
+        }
+    }
+
+    private async Task<TreeNode> CreateNodeAsync(Folder folder)
+    {
+        var hasChildren = await FolderService.FolderHasChildrenAsync(folder.Id, IncludeHidden);
+        return new TreeNode(folder, hasChildren);
+    }
+
+    private RenderFragment RenderTreeNode(TreeNode node) => builder =>
+    {
+        var seq = 0;
+        var isSelected = SelectedFolderId == node.Folder.Id;
+
+        builder.OpenElement(seq++, "div");
+        builder.AddAttribute(seq++, "class", $"admin-tree-node{(isSelected ? " selected" : "")}");
+
+        if (node.HasChildren)
+        {
+            builder.OpenElement(seq++, "button");
+            builder.AddAttribute(seq++, "type", "button");
+            builder.AddAttribute(seq++, "class", "admin-tree-toggle");
+            builder.AddAttribute(seq++, "aria-label", node.IsExpanded ? "Collapse" : "Expand");
+            builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => ToggleExpandAsync(node)));
+            builder.AddContent(seq++, node.IsExpanded ? "▼" : "▶");
+            builder.CloseElement();
+        }
+        else
+        {
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "admin-tree-toggle-spacer");
+            builder.CloseElement();
+        }
+
+        builder.OpenElement(seq++, "button");
+        builder.AddAttribute(seq++, "type", "button");
+        builder.AddAttribute(seq++, "class", "admin-tree-label");
+        builder.AddAttribute(seq++, "onclick", EventCallback.Factory.Create(this, () => SelectFolderAsync(node.Folder.Id)));
+        builder.AddContent(seq++, node.Folder.Name);
+        if (!node.Folder.IsVisible)
+        {
+            builder.OpenElement(seq++, "span");
+            builder.AddAttribute(seq++, "class", "admin-tree-hidden-badge");
+            builder.AddContent(seq++, "hidden");
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+
+        builder.CloseElement();
+
+        if (node.IsExpanded)
+        {
+            builder.OpenElement(seq++, "ul");
+            builder.AddAttribute(seq++, "class", "admin-tree-children");
+            if (node.IsLoadingChildren)
+            {
+                builder.OpenElement(seq++, "li");
+                builder.AddAttribute(seq++, "class", "text-muted small");
+                builder.AddContent(seq++, "Loading…");
+                builder.CloseElement();
+            }
+            else
+            {
+                foreach (var child in node.Children)
+                {
+                    builder.OpenElement(seq++, "li");
+                    builder.AddContent(seq++, RenderTreeNode(child));
+                    builder.CloseElement();
+                }
+            }
+            builder.CloseElement();
+        }
+    };
+
+    private async Task ToggleExpandAsync(TreeNode node)
+    {
+        if (!node.HasChildren)
+        {
+            return;
+        }
+
+        if (!node.IsExpanded)
+        {
+            node.IsExpanded = true;
+            if (!node.ChildrenLoaded)
+            {
+                node.IsLoadingChildren = true;
+                StateHasChanged();
+                try
+                {
+                    var children = await FolderService.GetChildFoldersAsync(node.Folder.Id, IncludeHidden);
+                    node.Children.Clear();
+                    foreach (var child in children.OrderBy(c => c.Name))
+                    {
+                        node.Children.Add(await CreateNodeAsync(child));
+                    }
+                    node.ChildrenLoaded = true;
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogError(ex, "Failed to load children for folder {FolderId}", node.Folder.Id);
+                }
+                finally
+                {
+                    node.IsLoadingChildren = false;
+                }
+            }
+        }
+        else
+        {
+            node.IsExpanded = false;
+        }
+
+        StateHasChanged();
+    }
+
+    private async Task SelectFolderAsync(int folderId)
+    {
+        SelectedFolderId = folderId;
+        await SelectedFolderIdChanged.InvokeAsync(folderId);
+    }
+
+    private sealed class TreeNode
+    {
+        public TreeNode(Folder folder, bool hasChildren)
+        {
+            Folder = folder;
+            HasChildren = hasChildren;
+        }
+
+        public Folder Folder { get; }
+        public bool HasChildren { get; }
+        public bool IsExpanded { get; set; }
+        public bool IsLoadingChildren { get; set; }
+        public bool ChildrenLoaded { get; set; }
+        public List<TreeNode> Children { get; } = new();
+    }
+}

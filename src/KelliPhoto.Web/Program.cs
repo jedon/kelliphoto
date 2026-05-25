@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using KelliPhoto.Web.Configuration;
 using KelliPhoto.Web.Data;
 using KelliPhoto.Web.Services;
 using Serilog;
@@ -23,6 +24,8 @@ static bool IsMvcIntegrationTestHost() =>
     string.Equals(Environment.GetEnvironmentVariable("KELLIPHOTO_INTEGRATION_TEST"), "1", StringComparison.OrdinalIgnoreCase);
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<IdentitySettings>(builder.Configuration.GetSection(IdentitySettings.SectionName));
 
 // Configure Serilog
 // ReadFrom.Configuration already includes console/file sinks from appsettings
@@ -135,7 +138,7 @@ builder.Services.AddScoped<AuthenticationStateProvider, RevalidatingIdentityAuth
 
 builder.Services.AddAuthorization(options =>
 {
-    options.AddPolicy("AdminOnly", policy => policy.RequireRole("Admin"));
+    options.AddPolicy("AdminOnly", policy => policy.RequireRole(RoleNames.Admin));
 });
 
 // Register HttpClient for Blazor components
@@ -158,6 +161,7 @@ builder.Services.AddScoped<IThumbnailService, ThumbnailService>();
 builder.Services.AddScoped<IWebImageService, WebImageService>();
 builder.Services.AddScoped<INavigationService, NavigationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddHostedService<CatalogService>();
 
 var app = builder.Build();
@@ -195,11 +199,16 @@ using (var scope = app.Services.CreateScope())
         var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
         
-        // Create Admin role if it doesn't exist
-        if (!await roleManager.RoleExistsAsync("Admin"))
+        if (!await roleManager.RoleExistsAsync(RoleNames.Admin))
         {
-            await roleManager.CreateAsync(new IdentityRole("Admin"));
+            await roleManager.CreateAsync(new IdentityRole(RoleNames.Admin));
             Log.Information("Admin role created.");
+        }
+
+        if (!await roleManager.RoleExistsAsync(RoleNames.User))
+        {
+            await roleManager.CreateAsync(new IdentityRole(RoleNames.User));
+            Log.Information("User role created.");
         }
         
         // Get admin email and password from configuration, or use defaults
@@ -220,7 +229,7 @@ using (var scope = app.Services.CreateScope())
             var result = await userManager.CreateAsync(adminUser, adminPassword);
             if (result.Succeeded)
             {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
+                await userManager.AddToRoleAsync(adminUser, RoleNames.Admin);
                 Log.Information("Admin user created with email: {Email}", adminEmail);
             }
             else
@@ -231,9 +240,9 @@ using (var scope = app.Services.CreateScope())
         else
         {
             // Ensure admin user is in Admin role
-            if (!await userManager.IsInRoleAsync(adminUser, "Admin"))
+            if (!await userManager.IsInRoleAsync(adminUser, RoleNames.Admin))
             {
-                await userManager.AddToRoleAsync(adminUser, "Admin");
+                await userManager.AddToRoleAsync(adminUser, RoleNames.Admin);
                 Log.Information("Admin role added to existing user: {Email}", adminEmail);
             }
         }

@@ -2,7 +2,7 @@
 
 ## Current Setup
 
-- **Architecture**: Proxmox host → Debian VM (192.168.10.150) → Docker containers
+- **Architecture**: Proxmox host → Debian VM (142.4.216.160) → Docker containers
 - **PostgreSQL container**: `kelliphoto-postgres`
 - **Debian VM port**: `15432` (mapped from container port `5432`)
 - **External access**: Requires iptables forwarding from Proxmox host
@@ -16,7 +16,7 @@ Forward external port to Debian VM. Using port `5444` externally to avoid confli
 ```bash
 # On Proxmox host (where iptables rules are configured)
 # Forward external port 5444 to Debian VM port 15432
-sudo iptables -t nat -A PREROUTING -p tcp --dport 5444 -j DNAT --to-destination 192.168.10.150:15432
+sudo iptables -t nat -A PREROUTING -p tcp --dport 5444 -j DNAT --to-destination 142.4.216.160:15432
 
 # Make it persistent
 sudo apt-get install -y iptables-persistent
@@ -77,7 +77,7 @@ sudo iptables -t nat -L PREROUTING -v --line-numbers | grep 5444
 
 Should show:
 ```
-DNAT tcp -- any any anywhere anywhere tcp dpt:5444 to:192.168.10.150:15432
+DNAT tcp -- any any anywhere anywhere tcp dpt:5444 to:142.4.216.160:15432
 ```
 
 ### 2. Check PostgreSQL is listening on Debian VM

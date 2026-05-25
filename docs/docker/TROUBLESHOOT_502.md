@@ -33,7 +33,7 @@ Look for:
 
 ```bash
 # From the host, test if port 8080 is accessible
-curl http://192.168.10.150:8080
+curl http://142.4.216.160:8080
 
 # Or test from inside the container
 docker exec kelliphoto-web curl http://localhost:80
@@ -58,7 +58,7 @@ sudo nginx -t
 
 # Check the proxy_pass URL matches your setup
 sudo grep proxy_pass /etc/nginx/sites-available/kelli.photo
-# Should show: proxy_pass http://192.168.10.150:8080;
+# Should show: proxy_pass http://142.4.216.160:8080;
 ```
 
 ### 6. Check container network
@@ -68,9 +68,9 @@ sudo grep proxy_pass /etc/nginx/sites-available/kelli.photo
 docker inspect kelliphoto-web | grep IPAddress
 
 # Test connectivity from nginx host
-telnet 192.168.10.150 8080
+telnet 142.4.216.160 8080
 # Or
-nc -zv 192.168.10.150 8080
+nc -zv 142.4.216.160 8080
 ```
 
 ## Common Fixes
@@ -124,7 +124,7 @@ docker exec kelliphoto-web dotnet ef database update
 If using Docker bridge network, nginx might not reach the container:
 ```bash
 # Check if nginx can reach the container
-curl http://192.168.10.150:8080
+curl http://142.4.216.160:8080
 
 # If that works but nginx doesn't, check firewall
 sudo ufw status
@@ -144,13 +144,13 @@ sudo ufw status
 
 3. **If container is running, test direct access:**
    ```bash
-   curl -v http://192.168.10.150:8080
+   curl -v http://142.4.216.160:8080
    ```
 
 4. **Check nginx can reach it:**
    ```bash
    # From nginx host
-   curl http://192.168.10.150:8080
+   curl http://142.4.216.160:8080
    ```
 
 5. **Review nginx error log:**

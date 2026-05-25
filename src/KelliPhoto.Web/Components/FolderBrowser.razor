@@ -5,6 +5,30 @@
 @inject NavigationManager Navigation
 @inject ILogger<FolderBrowser> Logger
 
+@{
+    RenderFragment<Folder> FolderCard = folder => @<div class="card folder-card @(EditMode ? "folder-card-edit" : "") @(!folder.IsVisible ? "folder-card-hidden" : "")"
+                                                      @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
+        @if (EditMode)
+        {
+            <div class="folder-edit-overlay" @onclick:stopPropagation="true">
+                <div class="form-check form-switch folder-visibility-switch">
+                    <input class="form-check-input" type="checkbox" checked="@folder.IsVisible"
+                           @onchange="(e) => ToggleFolderVisibility(folder, e.Value)" />
+                    <label class="form-check-label">Visible</label>
+                </div>
+            </div>
+            @if (!folder.IsVisible)
+            {
+                <span class="folder-hidden-badge">Hidden</span>
+            }
+        }
+        @RenderFolderThumbnail(folder.Id, folder.Name)
+        <div class="card-body text-center">
+            <p class="card-text">@folder.Name</p>
+        </div>
+    </div>;
+}
+
 <div class="folder-browser">
     @if (CurrentFolder != null)
     {
@@ -44,28 +68,7 @@
                     @foreach (var folder in ChildFolders)
                     {
                         <div class="col-md-3 col-sm-4 col-6 mb-3">
-                            <div class="card folder-card" @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
-                                @if (FolderThumbnails.ContainsKey(folder.Id) && FolderThumbnails[folder.Id] != null)
-                                {
-                                    <img src="/api/images/thumbnail/@FolderThumbnails[folder.Id]!.Id?size=300" 
-                                         alt="@folder.Name" 
-                                         class="folder-thumbnail"
-                                         loading="lazy"
-                                         onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                                    <div class="folder-icon-fallback" style="display: none;">
-                                        <i class="bi bi-folder"></i>
-                                    </div>
-                                }
-                                else
-                                {
-                                    <div class="folder-icon-fallback">
-                                        <i class="bi bi-folder"></i>
-                                    </div>
-                                }
-                                <div class="card-body text-center">
-                                    <p class="card-text">@folder.Name</p>
-                                </div>
-                            </div>
+                            @FolderCard(folder)
                         </div>
                     }
                 </div>
@@ -80,30 +83,7 @@
             @foreach (var folder in RootFolders)
             {
                 <div class="col-md-3 col-sm-4 col-6 mb-3">
-                    <div class="card folder-card" @onclick="() => NavigateToFolder(folder.Id)" style="cursor: pointer;">
-                        @if (FolderThumbnails.ContainsKey(folder.Id) && FolderThumbnails[folder.Id] != null)
-                        {
-                            <img src="/api/images/thumbnail/@FolderThumbnails[folder.Id]!.Id?size=300" 
-                                 alt="@folder.Name" 
-                                 class="folder-thumbnail"
-                                 loading="lazy"
-                                 draggable="false"
-                                 oncontextmenu="return false;"
-                                 onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-                            <div class="folder-icon-fallback" style="display: none;">
-                                <i class="bi bi-folder"></i>
-                            </div>
-                        }
-                        else
-                        {
-                            <div class="folder-icon-fallback">
-                                <i class="bi bi-folder"></i>
-                            </div>
-                        }
-                        <div class="card-body text-center">
-                            <p class="card-text">@folder.Name</p>
-                        </div>
-                    </div>
+                    @FolderCard(folder)
                 </div>
             }
         </div>
@@ -125,35 +105,41 @@
 
 @code {
     [Parameter] public int? FolderId { get; set; }
+    [Parameter] public bool EditMode { get; set; }
 
     private List<Folder> RootFolders { get; set; } = new();
     private List<Folder> ChildFolders { get; set; } = new();
     private Folder? CurrentFolder { get; set; }
     private List<Folder> Breadcrumbs { get; set; } = new();
-    private Dictionary<int, Photo?> FolderThumbnails { get; set; } = new();
+    private Dictionary<int, IReadOnlyList<Photo>> FolderThumbnails { get; set; } = new();
     private bool isLoading = false;
     private string? errorMessage = null;
 
-    private int? _lastLoadedFolderId = null;
+    private int? _lastLoadedFolderId;
+    private bool _lastEditMode;
 
     protected override async Task OnInitializedAsync()
     {
         _lastLoadedFolderId = FolderId;
+        _lastEditMode = EditMode;
         await LoadFoldersAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
-        // Only reload if FolderId actually changed
-        if (_lastLoadedFolderId == FolderId)
+        var folderChanged = _lastLoadedFolderId != FolderId;
+        var editModeChanged = _lastEditMode != EditMode;
+
+        if (!folderChanged && !editModeChanged)
         {
             Logger.LogDebug("FolderBrowser.OnParametersSet: FolderId unchanged ({FolderId}), skipping reload", FolderId);
             return;
         }
 
-        Logger.LogInformation("FolderBrowser.OnParametersSet: FolderId changed from {OldFolderId} to {NewFolderId}", 
-            _lastLoadedFolderId, FolderId);
+        Logger.LogInformation("FolderBrowser.OnParametersSet: FolderId changed from {OldFolderId} to {NewFolderId}, EditMode={EditMode}",
+            _lastLoadedFolderId, FolderId, EditMode);
         _lastLoadedFolderId = FolderId;
+        _lastEditMode = EditMode;
         await LoadFoldersAsync();
     }
 
@@ -173,7 +159,7 @@
                 if (CurrentFolder != null)
                 {
                     // These are already sequential due to await
-                    ChildFolders = await FolderService.GetChildFoldersAsync(FolderId.Value);
+                    ChildFolders = await FolderService.GetChildFoldersAsync(FolderId.Value, includeHidden: EditMode);
                     if (ChildFolders == null)
                     {
                         ChildFolders = new();
@@ -197,7 +183,7 @@
             else
             {
                 // Use GetTopLevelFoldersAsync to skip the kelli.photo root folder
-                RootFolders = await FolderService.GetTopLevelFoldersAsync();
+                RootFolders = await FolderService.GetTopLevelFoldersAsync(includeHidden: EditMode);
                 Logger.LogInformation("FolderBrowser: Loaded {Count} root folders from database", RootFolders?.Count ?? 0);
                 
                 if (RootFolders == null)
@@ -412,14 +398,95 @@
         {
             try
             {
-                var thumbnail = await FolderService.GetFolderThumbnailAsync(folder.Id);
-                FolderThumbnails[folder.Id] = thumbnail;
+                var thumbnails = await FolderService.GetFolderThumbnailPhotosAsync(folder.Id);
+                FolderThumbnails[folder.Id] = thumbnails;
             }
             catch (Exception ex)
             {
                 Logger.LogWarning(ex, "Failed to load thumbnail for folder {FolderId}", folder.Id);
-                FolderThumbnails[folder.Id] = null;
+                FolderThumbnails[folder.Id] = Array.Empty<Photo>();
             }
         }
     }
+
+    private async Task ToggleFolderVisibility(Folder folder, object? value)
+    {
+        if (value is bool isVisible)
+        {
+            folder.IsVisible = isVisible;
+            try
+            {
+                await FolderService.UpdateFolderVisibilityAsync(folder.Id, isVisible);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error updating folder visibility for {FolderId}", folder.Id);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private RenderFragment RenderFolderThumbnail(int folderId, string folderName) => builder =>
+    {
+        var thumbnails = FolderThumbnails.GetValueOrDefault(folderId) ?? Array.Empty<Photo>();
+
+        if (thumbnails.Count >= 2)
+        {
+            builder.OpenElement(0, "div");
+            builder.AddAttribute(1, "class", "folder-thumbnail-grid");
+
+            for (var i = 0; i < 4; i++)
+            {
+                builder.OpenElement(2, "div");
+                builder.AddAttribute(3, "class", "folder-thumbnail-grid-cell");
+
+                if (i < thumbnails.Count)
+                {
+                    var photo = thumbnails[i];
+                    builder.OpenElement(4, "img");
+                    builder.AddAttribute(5, "src", $"/api/images/thumbnail/{photo.Id}?size=300");
+                    builder.AddAttribute(6, "alt", folderName);
+                    builder.AddAttribute(7, "loading", "lazy");
+                    builder.AddAttribute(8, "draggable", "false");
+                    builder.AddAttribute(9, "oncontextmenu", "return false;");
+                    builder.CloseElement();
+                }
+
+                builder.CloseElement();
+            }
+
+            builder.CloseElement();
+            return;
+        }
+
+        if (thumbnails.Count == 1)
+        {
+            var photo = thumbnails[0];
+            builder.OpenElement(10, "img");
+            builder.AddAttribute(11, "src", $"/api/images/thumbnail/{photo.Id}?size=300");
+            builder.AddAttribute(12, "alt", folderName);
+            builder.AddAttribute(13, "class", "folder-thumbnail");
+            builder.AddAttribute(14, "loading", "lazy");
+            builder.AddAttribute(15, "draggable", "false");
+            builder.AddAttribute(16, "oncontextmenu", "return false;");
+            builder.AddAttribute(17, "onerror", "this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';");
+            builder.CloseElement();
+
+            builder.OpenElement(18, "div");
+            builder.AddAttribute(19, "class", "folder-icon-fallback");
+            builder.AddAttribute(20, "style", "display: none;");
+            builder.OpenElement(21, "i");
+            builder.AddAttribute(22, "class", "bi bi-folder");
+            builder.CloseElement();
+            builder.CloseElement();
+            return;
+        }
+
+        builder.OpenElement(23, "div");
+        builder.AddAttribute(24, "class", "folder-icon-fallback");
+        builder.OpenElement(25, "i");
+        builder.AddAttribute(26, "class", "bi bi-folder");
+        builder.CloseElement();
+        builder.CloseElement();
+    };
 }

@@ -15,6 +15,7 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
     public DbSet<Folder> Folders { get; set; }
     public DbSet<Photo> Photos { get; set; }
     public DbSet<Thumbnail> Thumbnails { get; set; }
+    public DbSet<FolderCoverPhoto> FolderCoverPhotos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -58,5 +59,24 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
         builder.Entity<Thumbnail>()
             .HasIndex(t => new { t.PhotoId, t.Size })
             .IsUnique();
+
+        builder.Entity<FolderCoverPhoto>()
+            .HasKey(fcp => new { fcp.FolderId, fcp.PhotoId });
+
+        builder.Entity<FolderCoverPhoto>()
+            .HasIndex(fcp => new { fcp.FolderId, fcp.SortOrder })
+            .IsUnique();
+
+        builder.Entity<FolderCoverPhoto>()
+            .HasOne(fcp => fcp.Folder)
+            .WithMany()
+            .HasForeignKey(fcp => fcp.FolderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<FolderCoverPhoto>()
+            .HasOne(fcp => fcp.Photo)
+            .WithMany()
+            .HasForeignKey(fcp => fcp.PhotoId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

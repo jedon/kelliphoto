@@ -14,7 +14,28 @@
         <div class="photo-masonry">
             @foreach (var photo in Photos)
             {
-                <div class="photo-item" @onclick="() => ViewPhoto(photo.Id)">
+                var isCover = IsCoverSelected(photo.Id);
+                <div class="photo-item @(EditMode ? "photo-item-edit" : "") @(isCover ? "photo-cover-selected" : "") @(!photo.IsVisible ? "photo-item-hidden" : "")"
+                     @onclick="() => HandlePhotoClick(photo)">
+                    @if (EditMode)
+                    {
+                        <div class="photo-edit-overlay" @onclick:stopPropagation="true">
+                            <div class="form-check form-switch photo-visibility-switch">
+                                <input class="form-check-input" type="checkbox" checked="@photo.IsVisible"
+                                       @onchange="(e) => TogglePhotoVisibility(photo, e.Value)" />
+                                <label class="form-check-label">Visible</label>
+                            </div>
+                            <button type="button"
+                                    class="btn btn-sm photo-cover-btn @(isCover ? "active" : "")"
+                                    @onclick="() => ToggleCover(photo.Id)">
+                                @(isCover ? "Cover ✓" : "Cover")
+                            </button>
+                        </div>
+                        @if (!photo.IsVisible)
+                        {
+                            <span class="photo-hidden-badge">Hidden</span>
+                        }
+                    }
                     <div class="photo-placeholder" style="@GetPlaceholderAspectStyle(photo)">
                         <img src="/api/images/thumbnail/@photo.Id?size=400" 
                              alt="@photo.Filename" 
@@ -68,6 +89,9 @@
 
 @code {
     [Parameter] public int FolderId { get; set; }
+    [Parameter] public bool EditMode { get; set; }
+    [Parameter] public IReadOnlyList<int> SelectedCoverPhotoIds { get; set; } = Array.Empty<int>();
+    [Parameter] public EventCallback<int> OnPhotoCoverToggle { get; set; }
 
     private List<Photo> Photos { get; set; } = new();
     private int currentPage = 0;
@@ -80,7 +104,8 @@
     private ScanProgressInfo? scanProgress = null;
     private System.Threading.Timer? _progressTimer;
     private System.Threading.Timer? _refreshTimer;
-    private int? _lastLoadedFolderId = null;
+    private int? _lastLoadedFolderId;
+    private bool _lastEditMode;
     private ElementReference scrollTrigger;
     private Microsoft.JSInterop.IJSObjectReference? _jsModule;
     private DotNetObjectReference<PhotoGrid>? _objRef;
@@ -89,6 +114,7 @@
     {
         Logger.LogInformation("PhotoGrid.OnInitializedAsync: FolderId={FolderId}", FolderId);
         _lastLoadedFolderId = FolderId;
+        _lastEditMode = EditMode;
         // Clear photos list to prevent duplicates from previous state
         Photos = new();
         currentPage = 0;
@@ -111,17 +137,20 @@
 
     protected override async Task OnParametersSetAsync()
     {
-        // Only reload if FolderId actually changed
-        if (_lastLoadedFolderId == FolderId)
+        var folderChanged = _lastLoadedFolderId != FolderId;
+        var editModeChanged = _lastEditMode != EditMode;
+
+        if (!folderChanged && !editModeChanged)
         {
             Logger.LogDebug("PhotoGrid.OnParametersSetAsync: FolderId unchanged ({FolderId}), skipping reload", FolderId);
             return;
         }
 
-        Logger.LogInformation("PhotoGrid.OnParametersSetAsync: FolderId changed from {OldFolderId} to {NewFolderId}", 
-            _lastLoadedFolderId, FolderId);
-        
+        Logger.LogInformation("PhotoGrid.OnParametersSetAsync: FolderId changed from {OldFolderId} to {NewFolderId}, EditMode={EditMode}",
+            _lastLoadedFolderId, FolderId, EditMode);
+
         _lastLoadedFolderId = FolderId;
+        _lastEditMode = EditMode;
         Photos = new();
         currentPage = 0;
         HasMore = true;
@@ -155,7 +184,7 @@
         errorMessage = null;
         try
         {
-            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize);
+            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize, includeHidden: EditMode);
             
             Logger.LogInformation("PhotoGrid.LoadPhotosAsync: Received {Count} photos from service for FolderId={FolderId}", 
                 photos?.Count ?? 0, FolderId);
@@ -259,9 +288,44 @@
         }
     }
 
-    private void ViewPhoto(int photoId)
+    private void HandlePhotoClick(Photo photo)
     {
-        Navigation.NavigateTo($"/photo/{photoId}");
+        if (EditMode)
+        {
+            _ = ToggleCover(photo.Id);
+        }
+        else
+        {
+            Navigation.NavigateTo($"/photo/{photo.Id}");
+        }
+    }
+
+    private bool IsCoverSelected(int photoId) =>
+        SelectedCoverPhotoIds.Contains(photoId);
+
+    private async Task ToggleCover(int photoId)
+    {
+        if (OnPhotoCoverToggle.HasDelegate)
+        {
+            await OnPhotoCoverToggle.InvokeAsync(photoId);
+        }
+    }
+
+    private async Task TogglePhotoVisibility(Photo photo, object? value)
+    {
+        if (value is bool isVisible)
+        {
+            photo.IsVisible = isVisible;
+            try
+            {
+                await PhotoService.UpdatePhotoVisibilityAsync(photo.Id, isVisible);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error updating photo visibility for {PhotoId}", photo.Id);
+            }
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     /// <summary>Inline aspect-ratio when DB has dimensions so masonry stays stable for broken thumbnails.</summary>
@@ -333,7 +397,7 @@
         try
         {
             var previousCount = Photos.Count;
-            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize);
+            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode);
             
             if (photos != null && photos.Count > previousCount)
             {

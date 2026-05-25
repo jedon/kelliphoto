@@ -6,7 +6,7 @@
 
 ```bash
 cd ~/kelli.photo  # or wherever you have the project
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql && docker restart kelliphoto-web
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql && docker restart kelliphoto-web
 ```
 
 **Done!** 🎉 Your site should work now.
@@ -92,7 +92,7 @@ scp complete-migration.sql your-server:~/
 ```bash
 # On server
 PGPASSWORD='!kelliphoto13!' psql \
-  -h 192.168.10.150 \
+  -h 142.4.216.160 \
   -p 15432 \
   -U kelli_photo_app \
   -d kelli_photo \
@@ -155,7 +155,7 @@ The migration creates these tables:
 ### Quick Check
 ```bash
 # List all tables
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -c "\dt"
 ```
 
 ### Detailed Check
@@ -196,7 +196,7 @@ git push
 # 3. On production server
 cd ~/kelli.photo
 git pull
-PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 docker restart kelliphoto-web
 ```
 

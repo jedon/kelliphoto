@@ -12,7 +12,7 @@ sudo netstat -tlnp | grep 15432
 sudo ss -tlnp | grep 15432
 
 # Should show something like:
-# 0.0.0.0:15432 or 192.168.10.150:15432
+# 0.0.0.0:15432 or 142.4.216.160:15432
 ```
 
 ### 2. Check PostgreSQL configuration
@@ -77,14 +77,14 @@ sudo iptables -t nat -L PREROUTING -v --line-numbers | grep 5432
 
 Should show:
 ```
-DNAT tcp -- any any anywhere anywhere tcp dpt:postgresql to:192.168.10.150:15432
+DNAT tcp -- any any anywhere anywhere tcp dpt:postgresql to:142.4.216.160:15432
 ```
 
 ### 7. Test connection from server itself
 
 ```bash
 # From the server, test internal connection:
-psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo
+psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo
 ```
 
 ### 8. Test external connection

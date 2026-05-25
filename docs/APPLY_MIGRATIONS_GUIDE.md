@@ -29,7 +29,7 @@ This means the database tables haven't been created on the production server.
 3. **Run the migration** (back on the server):
    ```bash
    # Apply the migration
-   PGPASSWORD='!kelliphoto13!' psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+   PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
    
    # Restart the web container
    docker restart kelliphoto-web
@@ -105,7 +105,7 @@ If you prefer to run the SQL directly:
 
 ```bash
 # On the server
-psql -h 192.168.10.150 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
+psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d kelli_photo -f complete-migration.sql
 # Enter password when prompted: !kelliphoto13!
 ```
 
