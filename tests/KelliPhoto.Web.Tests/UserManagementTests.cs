@@ -1,4 +1,5 @@
 using KelliPhoto.Web.Services;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
@@ -12,9 +13,12 @@ public class UserManagementTests : IClassFixture<KelliPhotoWebApplicationFactory
     public UserManagementTests(KelliPhotoWebApplicationFactory factory)
     {
         Environment.SetEnvironmentVariable("KELLIPHOTO_INTEGRATION_TEST", "1");
+
+        // Unique in-memory DB per class — must be set before the host is built (parallel CI tests share env otherwise).
         var dbName = "UserMgmt_" + Guid.NewGuid().ToString("N");
         Environment.SetEnvironmentVariable("KELLIPHOTO_INMEMORY_DB", dbName);
-        _factory = factory.WithWebHostBuilder(_ => { });
+
+        _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
     }
 
     [Fact]

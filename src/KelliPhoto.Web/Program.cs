@@ -231,17 +231,8 @@ using (var scope = app.Services.CreateScope())
         var userManager = services.GetRequiredService<UserManager<IdentityUser>>();
         var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
         
-        if (!await roleManager.RoleExistsAsync(RoleNames.Admin))
-        {
-            await roleManager.CreateAsync(new IdentityRole(RoleNames.Admin));
-            Log.Information("Admin role created.");
-        }
-
-        if (!await roleManager.RoleExistsAsync(RoleNames.User))
-        {
-            await roleManager.CreateAsync(new IdentityRole(RoleNames.User));
-            Log.Information("User role created.");
-        }
+        await EnsureRoleExistsAsync(roleManager, RoleNames.Admin);
+        await EnsureRoleExistsAsync(roleManager, RoleNames.User);
         
         // Get admin email and password from configuration, or use defaults
         var adminEmail = builder.Configuration["Admin:Email"] ?? "admin@kelliphoto.com";
@@ -286,6 +277,16 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+static async Task EnsureRoleExistsAsync(RoleManager<IdentityRole> roleManager, string roleName)
+{
+    if (await roleManager.FindByNameAsync(roleName) != null)
+        return;
+
+    var result = await roleManager.CreateAsync(new IdentityRole(roleName));
+    if (result.Succeeded)
+        Log.Information("{Role} role created.", roleName);
+}
 
 // Make Program accessible to WebApplicationFactory for testing
 public partial class Program { }
