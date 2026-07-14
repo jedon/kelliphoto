@@ -179,6 +179,18 @@ a:hover {
     }
 }
 
+@media (min-width: 2200px) {
+    .gallery-page .photo-masonry {
+        column-count: 5;
+    }
+}
+
+@media (min-width: 2800px) {
+    .gallery-page .photo-masonry {
+        column-count: 6;
+    }
+}
+
 @media (max-width: 768px) {
     .gallery-page .photo-masonry {
         column-count: 2;
@@ -311,7 +323,7 @@ img {
 }
 
 .header-container {
-    max-width: 1200px;
+    max-width: min(1200px + max(0px, (100vw - 1920px) * 0.75), 3200px);
     margin: 0 auto;
     padding: 0 2rem;
     display: flex;
@@ -328,9 +340,9 @@ img {
 }
 
 .logo-image {
-    height: 50px;
+    height: 70px;
     width: auto;
-    max-width: 300px;
+    max-width: 400px;
     object-fit: contain;
 }
 
@@ -340,7 +352,7 @@ img {
 }
 
 .content {
-    max-width: 1200px;
+    max-width: min(1200px + max(0px, (100vw - 1920px) * 0.75), 3200px);
     margin: 0 auto;
     padding: 2rem;
     min-height: calc(100vh - 200px);
@@ -356,7 +368,7 @@ img {
 }
 
 .footer-nav {
-    max-width: 1200px;
+    max-width: min(1200px + max(0px, (100vw - 1920px) * 0.75), 3200px);
     margin: 0 auto;
     padding: 0 2rem;
     display: flex;
@@ -383,7 +395,7 @@ img {
     font-size: 0.85rem;
     padding-top: 1rem;
     border-top: 1px solid #333;
-    max-width: 1200px;
+    max-width: min(1200px + max(0px, (100vw - 1920px) * 0.75), 3200px);
     margin: 0 auto;
     padding-left: 2rem;
     padding-right: 2rem;
@@ -454,8 +466,8 @@ img {
     }
 
     .logo-image {
-        height: 40px;
-        max-width: 250px;
+        height: 55px;
+        max-width: 320px;
     }
 
     .content {

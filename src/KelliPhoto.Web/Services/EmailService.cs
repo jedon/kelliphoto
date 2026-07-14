@@ -17,7 +17,14 @@ public class EmailService : IEmailService
         _logger = Serilog.Log.ForContext<EmailService>();
     }
 
-    public async Task<bool> SendEmailAsync(string to, string subject, string body, string? fromName = null, string? fromEmail = null)
+    public async Task<bool> SendEmailAsync(
+        string to,
+        string subject,
+        string body,
+        string? fromName = null,
+        string? fromEmail = null,
+        string? replyToName = null,
+        string? replyToEmail = null)
     {
         if (string.IsNullOrWhiteSpace(_settings.SmtpHost) || string.IsNullOrWhiteSpace(_settings.SmtpUsername))
         {
@@ -28,11 +35,19 @@ public class EmailService : IEmailService
         try
         {
             var message = new MimeMessage();
+            // Always send as the authenticated mailbox; Gmail rejects arbitrary From addresses.
             message.From.Add(new MailboxAddress(
                 fromName ?? _settings.FromName ?? "Kelli Thompson Photography",
                 fromEmail ?? _settings.FromEmail ?? _settings.SmtpUsername));
             message.To.Add(new MailboxAddress("", to));
             message.Subject = subject;
+
+            if (!string.IsNullOrWhiteSpace(replyToEmail))
+            {
+                message.ReplyTo.Add(new MailboxAddress(
+                    replyToName ?? replyToEmail,
+                    replyToEmail));
+            }
 
             var bodyBuilder = new BodyBuilder
             {
@@ -87,8 +102,8 @@ public class EmailService : IEmailService
             to: _settings.ContactEmail,
             subject: $"Contact Form: {subject}",
             body: body,
-            fromName: name,
-            fromEmail: email);
+            replyToName: name,
+            replyToEmail: email);
     }
 }
 

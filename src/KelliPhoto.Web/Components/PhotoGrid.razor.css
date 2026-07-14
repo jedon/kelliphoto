@@ -259,6 +259,18 @@
     }
 }
 
+@media (min-width: 2200px) {
+    .photo-masonry {
+        column-count: 5;
+    }
+}
+
+@media (min-width: 2800px) {
+    .photo-masonry {
+        column-count: 6;
+    }
+}
+
 @media (max-width: 768px) {
     .photo-masonry {
         column-count: 2;

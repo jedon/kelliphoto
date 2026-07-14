@@ -143,6 +143,7 @@ builder.Services.AddAuthorization(options =>
 
 // Register HttpClient for Blazor components
 builder.Services.AddHttpClient();
+builder.Services.AddHttpContextAccessor();
 
 // Add memory cache for rate limiting
 builder.Services.AddMemoryCache();
@@ -161,6 +162,7 @@ builder.Services.AddScoped<IThumbnailService, ThumbnailService>();
 builder.Services.AddScoped<IWebImageService, WebImageService>();
 builder.Services.AddScoped<INavigationService, NavigationService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
+builder.Services.AddScoped<IContactFormService, ContactFormService>();
 builder.Services.AddScoped<IUserManagementService, UserManagementService>();
 builder.Services.AddHostedService<CatalogService>();
 

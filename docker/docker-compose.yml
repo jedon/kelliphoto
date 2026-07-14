@@ -35,6 +35,14 @@ services:
       - ASPNETCORE_ENVIRONMENT=Production
       # Set CONNECTION_STRINGS__DEFAULT_CONNECTION in docker/.env (see .env.example). Compose loads .env from this folder for substitution.
       - ConnectionStrings__DefaultConnection=${CONNECTION_STRINGS__DEFAULT_CONNECTION}
+      # Email / contact form (set in docker/.env — see .env.example)
+      - Email__SmtpHost=${EMAIL__SMTP_HOST:-smtp.gmail.com}
+      - Email__SmtpPort=${EMAIL__SMTP_PORT:-587}
+      - Email__SmtpUsername=${EMAIL__SMTP_USERNAME}
+      - Email__SmtpPassword=${EMAIL__SMTP_PASSWORD}
+      - Email__FromEmail=${EMAIL__FROM_EMAIL}
+      - Email__FromName=${EMAIL__FROM_NAME:-Kelli Thompson Photography}
+      - Email__ContactEmail=${EMAIL__CONTACT_EMAIL}
       # Scan the whole mount (theme-cards, source, etc.). Photo files from Windows are under .../source.
       - GallerySettings__GalleryPath=/mnt/gallery
       - GallerySettings__LegacyWindowsLocalMountPath=/mnt/gallery/source
