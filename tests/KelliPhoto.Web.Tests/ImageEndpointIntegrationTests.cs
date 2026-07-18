@@ -67,6 +67,7 @@ public class ImageEndpointIntegrationTests : IClassFixture<KelliPhotoWebApplicat
             {
                 config.AddInMemoryCollection(new Dictionary<string, string?>
                 {
+                    { "Testing:InMemoryDatabaseName", testDatabaseName },
                     { "GallerySettings:GalleryPath", _testGalleryPath },
                     { "GallerySettings:ThumbnailPath", Path.Combine(_testGalleryPath, ".thumbnails") },
                     { "GallerySettings:WebImagePath", _testWebImagePath },

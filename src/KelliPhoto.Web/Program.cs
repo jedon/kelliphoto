@@ -287,7 +287,19 @@ static async Task EnsureRoleExistsAsync(RoleManager<IdentityRole> roleManager, s
 
     var result = await roleManager.CreateAsync(new IdentityRole(roleName));
     if (result.Succeeded)
+    {
         Log.Information("{Role} role created.", roleName);
+        return;
+    }
+
+    // Parallel test hosts can race on role creation; treat "already exists" as success.
+    if (await roleManager.FindByNameAsync(roleName) != null)
+        return;
+
+    Log.Warning(
+        "Failed to create role {Role}: {Errors}",
+        roleName,
+        string.Join(", ", result.Errors.Select(e => e.Description)));
 }
 
 // Make Program accessible to WebApplicationFactory for testing

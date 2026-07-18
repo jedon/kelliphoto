@@ -1,11 +1,14 @@
+using System.Collections.Generic;
 using KelliPhoto.Web.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace KelliPhoto.Web.Tests;
 
+[Collection("UserManagement")]
 public class UserManagementTests : IClassFixture<KelliPhotoWebApplicationFactory>
 {
     private readonly WebApplicationFactory<Program> _factory;
@@ -14,11 +17,20 @@ public class UserManagementTests : IClassFixture<KelliPhotoWebApplicationFactory
     {
         Environment.SetEnvironmentVariable("KELLIPHOTO_INTEGRATION_TEST", "1");
 
-        // Unique in-memory DB per class — must be set before the host is built (parallel CI tests share env otherwise).
+        // Unique in-memory DB per class — pass via config so parallel tests cannot clobber env.
         var dbName = "UserMgmt_" + Guid.NewGuid().ToString("N");
-        Environment.SetEnvironmentVariable("KELLIPHOTO_INMEMORY_DB", dbName);
 
-        _factory = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"));
+        _factory = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureAppConfiguration((_, config) =>
+            {
+                config.AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["Testing:InMemoryDatabaseName"] = dbName
+                });
+            });
+        });
     }
 
     [Fact]
@@ -63,7 +75,7 @@ public class UserManagementTests : IClassFixture<KelliPhotoWebApplicationFactory
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
 
         var admins = await userManager.GetUsersInRoleAsync(RoleNames.Admin);
-        var soleAdmin = admins.Single();
+        var soleAdmin = Assert.Single(admins);
 
         var result = await svc.SetAdminRoleAsync(soleAdmin.Id, isAdmin: false);
         Assert.False(result.Succeeded);
@@ -78,4 +90,9 @@ public class UserManagementTests : IClassFixture<KelliPhotoWebApplicationFactory
         Assert.Equal(System.Net.HttpStatusCode.Redirect, response.StatusCode);
         Assert.Contains("/Identity/Account/Login", response.Headers.Location?.ToString(), StringComparison.OrdinalIgnoreCase);
     }
+}
+
+[CollectionDefinition("UserManagement", DisableParallelization = true)]
+public class UserManagementCollection
+{
 }
