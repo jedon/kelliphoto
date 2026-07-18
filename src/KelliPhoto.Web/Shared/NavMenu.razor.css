@@ -36,9 +36,9 @@
 }
 
 .main-nav .nav-user {
-    margin-left: 1rem;
-    padding-left: 1rem;
-    border-left: 1px solid #333;
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
     font-size: 0.8rem;
     color: #888;
     white-space: nowrap;
@@ -49,9 +49,9 @@
 
 .main-nav .admin-link,
 .main-nav .nav-link {
-    margin-left: 1rem;
-    padding-left: 1rem;
-    border-left: 1px solid #333;
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
     font-size: 0.85rem;
     color: #999;
 }

@@ -9,8 +9,8 @@
     font-size: 0.9rem;
     color: #fff;
     margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #333;
+    padding-bottom: 0;
+    border-bottom: none;
     flex-wrap: wrap;
     overflow: visible;
 }

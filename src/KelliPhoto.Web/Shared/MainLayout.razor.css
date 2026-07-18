@@ -15,8 +15,8 @@
 
 .site-header {
     background-color: rgba(0, 0, 0, 0.35);
-    border-bottom: 1px solid #333;
-    padding: 1.5rem 0;
+    border-bottom: none;
+    padding: 0.75rem 0;
     position: sticky;
     top: 0;
     z-index: 100;
