@@ -8,11 +8,13 @@ html, body {
     padding: 0;
     color: #fff;
     background-color: #000;
-    /* Tiled damask: use scroll, not fixed — fixed breaks background-image on Safari/iOS and some WebKit builds. */
-    background-image: url('/images/background.png');
-    background-repeat: repeat;
-    background-size: 480px auto;
-    background-attachment: scroll;
+    /* Dark overlay + tile so the whole site matches the header depth */
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.82)),
+        url('/images/background.png');
+    background-repeat: no-repeat, repeat;
+    background-size: cover, 480px auto;
+    background-attachment: scroll, scroll;
     min-height: 100vh;
     width: 100%;
     height: 100%;
@@ -304,15 +306,17 @@ img {
     min-height: 100vh;
     width: 100%;
     background-color: transparent;
-    /* Same tile on .page so the pattern shows even when body painting is wrong (WebKit / compositing). */
-    background-image: url('/images/background.png');
-    background-repeat: repeat;
-    background-size: 480px auto;
-    background-attachment: scroll;
+    /* Same dark tile on .page so the pattern shows even when body painting is wrong (WebKit / compositing). */
+    background-image:
+        linear-gradient(rgba(0, 0, 0, 0.82), rgba(0, 0, 0, 0.82)),
+        url('/images/background.png');
+    background-repeat: no-repeat, repeat;
+    background-size: cover, 480px auto;
+    background-attachment: scroll, scroll;
 }
 
 .site-header {
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: rgba(0, 0, 0, 0.35);
     border-bottom: 1px solid #333;
     padding: 1.5rem 0;
     position: sticky;
@@ -360,7 +364,7 @@ img {
 }
 
 .site-footer {
-    background-color: rgba(0, 0, 0, 0.85);
+    background-color: rgba(0, 0, 0, 0.35);
     border-top: 1px solid #333;
     padding: 2rem 0;
     margin-top: auto;
