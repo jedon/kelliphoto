@@ -51,8 +51,7 @@ services:
       - GallerySettings__WebImagePath=/app/data/web
       - GallerySettings__WebAssetsPath=/mnt/gallery/.web
       # DB rows may store UNC paths from a Windows scan; strip this prefix and join with LegacyWindowsLocalMountPath.
-      # Set to the Windows UNC root used when the catalog was scanned (path mapping for Linux).
-      - 'GallerySettings__LegacyWindowsGalleryRoot=\\YOUR_WINDOWS_SERVER\path\to\kelli.photo'
+      - 'GallerySettings__LegacyWindowsGalleryRoot=\\darklingnas\Kelli\kelli.photo'
       # Optional: Windows/DB folder name → Linux dir (see appsettings.json GallerySettings:FolderNameAliases). Prefer editing appsettings in the image or bind-mounting it; env keys with spaces are awkward.
     volumes:
       # Use :ro for the gallery bind if the host mount is read-only; ThumbnailPath/WebImagePath must then stay under /app/data.

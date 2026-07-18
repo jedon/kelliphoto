@@ -7,7 +7,7 @@
     align-items: center;
     gap: 0.5rem;
     font-size: 0.9rem;
-    color: #D4AF37;
+    color: #fff;
     margin-bottom: 1.5rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid #333;
@@ -16,13 +16,13 @@
 }
 
 .breadcrumb-nav a {
-    color: #D4AF37;
+    color: #fff;
     text-decoration: none;
     transition: color 0.2s;
 }
 
 .breadcrumb-nav a:hover {
-    color: #F4D03F;
+    color: #e8e8e8;
 }
 
 .breadcrumb-separator {
@@ -30,7 +30,7 @@
 }
 
 .breadcrumb-current {
-    color: #D4AF37;
+    color: #fff;
     font-weight: 500;
 }
 
@@ -42,7 +42,7 @@
     font-size: 1rem;
     font-weight: 400;
     margin-bottom: 1rem;
-    color: #D4AF37;
+    color: #fff;
     text-transform: uppercase;
     letter-spacing: 0.05em;
 }
@@ -58,7 +58,7 @@
     border: 1px solid #D4AF37;
     border-radius: 4px;
     background: rgba(0, 0, 0, 0.8);
-    color: #D4AF37;
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -184,7 +184,7 @@
 
 .folder-card .card-text {
     margin: 0;
-    color: #D4AF37;
+    color: #fff;
     font-size: 0.9rem;
     text-align: center;
     word-break: break-word;

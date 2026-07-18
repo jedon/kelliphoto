@@ -2,13 +2,13 @@
     max-width: 800px;
     margin: 2rem auto;
     padding: 2rem;
-    color: #D4AF37;
+    color: #fff;
 }
 
 .contact-intro {
     margin-bottom: 2rem;
     font-size: 1.1rem;
-    color: #F4D03F;
+    color: #e8e8e8;
 }
 
 .contact-form {
@@ -25,7 +25,7 @@
 .form-group label {
     display: block;
     margin-bottom: 0.5rem;
-    color: #D4AF37;
+    color: #fff;
     font-weight: 500;
 }
 
@@ -35,14 +35,14 @@
     background-color: #1a1a1a;
     border: 1px solid #333;
     border-radius: 4px;
-    color: #D4AF37;
+    color: #fff;
     font-size: 1rem;
     font-family: inherit;
 }
 
 .form-control:focus {
     outline: none;
-    border-color: #D4AF37;
+    border-color: #fff;
     box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.2);
 }
 
@@ -66,13 +66,13 @@ textarea.form-control {
 }
 
 .btn-primary {
-    background-color: #D4AF37;
+    background-color: #fff;
     color: #000;
     font-weight: 600;
 }
 
 .btn-primary:hover:not(:disabled) {
-    background-color: #F4D03F;
+    background-color: #e8e8e8;
     transform: translateY(-1px);
 }
 

@@ -6,7 +6,7 @@
 }
 
 .main-nav ::deep a {
-    color: #D4AF37;
+    color: #fff;
     text-decoration: none;
     font-size: 0.95rem;
     font-weight: 400;
@@ -17,11 +17,11 @@
 }
 
 .main-nav ::deep a:hover {
-    color: #F4D03F;
+    color: #e8e8e8;
 }
 
 .main-nav ::deep a.active {
-    color: #D4AF37;
+    color: #fff;
     font-weight: 500;
 }
 

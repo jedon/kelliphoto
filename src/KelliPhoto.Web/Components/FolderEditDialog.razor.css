@@ -31,7 +31,7 @@
 
 .folder-edit-title {
     margin: 0;
-    color: #D4AF37;
+    color: #fff;
     font-size: 1.1rem;
     font-weight: 500;
 }
@@ -57,7 +57,7 @@
 }
 
 .folder-edit-body .form-label {
-    color: #D4AF37;
+    color: #fff;
     font-size: 0.85rem;
 }
 
@@ -74,7 +74,7 @@
 }
 
 .folder-edit-section-title {
-    color: #D4AF37;
+    color: #fff;
     margin-bottom: 0.25rem;
 }
 
@@ -113,8 +113,8 @@
 }
 
 .folder-edit-tab.active {
-    border-color: #D4AF37;
-    color: #D4AF37;
+    border-color: #fff;
+    color: #fff;
     background: rgba(212, 175, 55, 0.12);
 }
 
@@ -139,7 +139,7 @@
 }
 
 .folder-edit-photo-btn.selected {
-    border-color: #D4AF37;
+    border-color: #fff;
     box-shadow: 0 0 0 1px #D4AF37;
 }
 
@@ -182,11 +182,11 @@
 
 .folder-edit-footer .btn-primary {
     background: #D4AF37;
-    border-color: #D4AF37;
+    border-color: #fff;
     color: #111;
 }
 
 .folder-edit-footer .btn-primary:hover {
     background: #F4D03F;
-    border-color: #F4D03F;
+    border-color: #e8e8e8;
 }

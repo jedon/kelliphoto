@@ -187,3 +187,8 @@ appsettings.Production.json
 *.tmp
 *.temp
 *~
+
+# Local gallery web assets staging (served from /mnt/gallery/.web on server)
+.web/
+purpleiris.png
+purpledamask.png

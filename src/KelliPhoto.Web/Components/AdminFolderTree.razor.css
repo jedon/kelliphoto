@@ -34,7 +34,7 @@
 .admin-tree-label {
     background: none;
     border: none;
-    color: #D4AF37;
+    color: #fff;
     cursor: pointer;
     padding: 0.15rem 0.25rem;
     text-align: left;
@@ -61,7 +61,7 @@
 }
 
 .admin-tree-label:hover {
-    color: #F4D03F;
+    color: #e8e8e8;
 }
 
 .admin-tree-hidden-badge {

@@ -29,7 +29,7 @@
 }
 
 .photo-cover-selected .photo-placeholder {
-    border-color: #D4AF37;
+    border-color: #fff;
     box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.5);
 }
 
@@ -66,14 +66,14 @@
 }
 
 .photo-visibility-switch .form-check-label {
-    color: #D4AF37;
+    color: #fff;
     font-size: 0.75rem;
     margin: 0;
 }
 
 .photo-cover-btn {
     background: #333;
-    color: #D4AF37;
+    color: #fff;
     border: 1px solid #D4AF37;
 }
 
