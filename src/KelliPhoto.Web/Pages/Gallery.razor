@@ -70,6 +70,7 @@
 
     private async Task LoadDisplayFolderAsync()
     {
+        isSlideshowOpen = false;
         _lastProcessedFolderId = FolderId;
 
         if (FolderId.HasValue)
