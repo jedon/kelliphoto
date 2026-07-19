@@ -2,6 +2,8 @@ using KelliPhoto.Web.Data.Models;
 
 namespace KelliPhoto.Web.Services;
 
+public record AdjacentPhotos(int? PrevId, int? NextId, int Index, int Total);
+
 public interface IPhotoService
 {
     Task<List<Photo>> GetPhotosByFolderIdAsync(int folderId, int skip = 0, int take = 50, bool includeHidden = false);
@@ -17,4 +19,5 @@ public interface IPhotoService
     Task UpdatePhotoDisplayNameAsync(int photoId, string? displayName);
     Task UpdatePhotoDescriptionAsync(int photoId, string? description);
     Task<List<Photo>> GetAllPhotosByFolderIdAsync(int folderId);
+    Task<AdjacentPhotos?> GetAdjacentPhotoIdsAsync(int photoId, bool includeHidden = false);
 }

@@ -6,6 +6,7 @@
 @inject NavigationManager Navigation
 @inject ILogger<PhotoGrid> Logger
 @inject IJSRuntime JSRuntime
+@inject IHomePageCache HomePageCache
 @implements IAsyncDisposable
 
 <div class="photo-grid-container">
@@ -89,6 +90,7 @@
 
 @code {
     [Parameter] public int FolderId { get; set; }
+    [Parameter] public bool UseHomePageCache { get; set; }
     [Parameter] public bool EditMode { get; set; }
     [Parameter] public IReadOnlyList<int> SelectedCoverPhotoIds { get; set; } = Array.Empty<int>();
     [Parameter] public EventCallback<int> OnPhotoCoverToggle { get; set; }
@@ -184,7 +186,16 @@
         errorMessage = null;
         try
         {
-            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize, includeHidden: EditMode);
+            List<Photo> photos;
+            if (UseHomePageCache && currentPage == 0)
+            {
+                photos = await HomePageCache.GetFirstPagePhotosAsync(FolderId, PageSize, EditMode, 
+                    () => PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode));
+            }
+            else
+            {
+                photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize, includeHidden: EditMode);
+            }
             
             Logger.LogInformation("PhotoGrid.LoadPhotosAsync: Received {Count} photos from service for FolderId={FolderId}", 
                 photos?.Count ?? 0, FolderId);
@@ -397,7 +408,7 @@
         try
         {
             var previousCount = Photos.Count;
-            var photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode);
+            List<Photo> photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode);
             
             if (photos != null && photos.Count > previousCount)
             {

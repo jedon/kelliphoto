@@ -10,16 +10,19 @@ public class FolderService : IFolderService
     private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IPathService _pathService;
     private readonly ILogger<FolderService> _logger;
+    private readonly IHomePageCache? _homePageCache;
     private bool? _folderCoverPhotosTableAvailable;
 
     public FolderService(
         IDbContextFactory<ApplicationDbContext> contextFactory,
         IPathService pathService,
-        ILogger<FolderService> logger)
+        ILogger<FolderService> logger,
+        IHomePageCache? homePageCache = null)
     {
         _contextFactory = contextFactory;
         _pathService = pathService;
         _logger = logger;
+        _homePageCache = homePageCache;
     }
 
     public async Task<List<Folder>> GetRootFoldersAsync(bool includeHidden = false)
@@ -719,6 +722,7 @@ public class FolderService : IFolderService
 
         folder.ThumbnailPhotoId = distinctIds.Count > 0 ? distinctIds[0] : null;
         await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
     }
 
     public async Task ClearFolderCoverPhotosAsync(int folderId)
@@ -823,6 +827,7 @@ public class FolderService : IFolderService
         folder.Description = description;
 
         await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
     }
 
     public async Task UpdateFolderVisibilityAsync(int folderId, bool isVisible)
@@ -835,6 +840,7 @@ public class FolderService : IFolderService
         }
         folder.IsVisible = isVisible;
         await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
     }
 
     public async Task UpdateFolderDescriptionAsync(int folderId, string? description)
@@ -847,6 +853,7 @@ public class FolderService : IFolderService
         }
         folder.Description = description;
         await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
     }
 
     public async Task<List<Folder>> GetAllFoldersAsync()

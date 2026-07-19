@@ -16,22 +16,48 @@
 }
 else if (Photo != null)
 {
-    <div class="photo-viewer">
+    <div class="photo-viewer" @onkeydown="HandleKeyDown" tabindex="0" @ref="_viewerDiv" style="outline: none;">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <button class="btn btn-secondary" @onclick="GoBack">
                 <i class="bi bi-arrow-left"></i> Back
             </button>
-            <h4>@Photo.Filename</h4>
-            <div></div>
+            <div class="text-center">
+                <h4 class="mb-0">@Photo.Filename</h4>
+                @if (_adjacentPhotos != null)
+                {
+                    <small class="text-muted">@_adjacentPhotos.Index of @_adjacentPhotos.Total</small>
+                }
+            </div>
+            <div style="width: 72px;"></div>
         </div>
 
-        <div class="text-center">
-            <img src="/api/images/web/@Photo.Id?max=2000&watermark=true" 
-                 alt="@Photo.Filename" 
-                 class="img-fluid protected-image"
-                 style="max-height: 80vh; max-width: 100%;"
-                 draggable="false"
-                 oncontextmenu="return false;" />
+        <div class="row align-items-center g-3">
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary" 
+                        @onclick="NavigateToPrev" 
+                        disabled="@(_adjacentPhotos?.PrevId == null)"
+                        title="Previous (Left Arrow)">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+            </div>
+            
+            <div class="col text-center">
+                <img src="/api/images/web/@Photo.Id?max=2000&watermark=true" 
+                     alt="@Photo.Filename" 
+                     class="img-fluid protected-image"
+                     style="max-height: 80vh; max-width: 100%;"
+                     draggable="false"
+                     oncontextmenu="return false;" />
+            </div>
+
+            <div class="col-auto">
+                <button class="btn btn-outline-secondary" 
+                        @onclick="NavigateToNext" 
+                        disabled="@(_adjacentPhotos?.NextId == null)"
+                        title="Next (Right Arrow)">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
         </div>
 
         @if (Photo.Width.HasValue && Photo.Height.HasValue)
@@ -59,7 +85,10 @@ else
     [Parameter] public int PhotoId { get; set; }
 
     private Photo? Photo { get; set; }
+    private AdjacentPhotos? _adjacentPhotos;
     private bool _notFound;
+    private ElementReference _viewerDiv;
+    private int? _lastFocusedPhotoId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -71,10 +100,31 @@ else
         await LoadPhotoAsync();
     }
 
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Photo != null && (_lastFocusedPhotoId != Photo.Id || firstRender))
+        {
+            _lastFocusedPhotoId = Photo.Id;
+            try
+            {
+                await _viewerDiv.FocusAsync();
+            }
+            catch (Microsoft.JSInterop.JSException)
+            {
+                // Ignore focus errors
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore focus errors when JS is not available/interop is active or element is disposed
+            }
+        }
+    }
+
     private async Task LoadPhotoAsync()
     {
         _notFound = false;
         Photo = null;
+        _adjacentPhotos = null;
 
         var authState = await AuthStateProvider.GetAuthenticationStateAsync();
         var isAdmin = authState.User.IsInRole(RoleNames.Admin);
@@ -86,7 +136,50 @@ else
         }
 
         Photo = await PhotoService.GetPhotoByIdAsync(PhotoId);
-        _notFound = Photo == null;
+        if (Photo == null)
+        {
+            _notFound = true;
+            return;
+        }
+
+        _adjacentPhotos = await PhotoService.GetAdjacentPhotoIdsAsync(PhotoId, includeHidden: isAdmin);
+    }
+
+    private void NavigateToPrev()
+    {
+        if (_adjacentPhotos?.PrevId != null)
+        {
+            NavigateToPhoto(_adjacentPhotos.PrevId.Value);
+        }
+    }
+
+    private void NavigateToNext()
+    {
+        if (_adjacentPhotos?.NextId != null)
+        {
+            NavigateToPhoto(_adjacentPhotos.NextId.Value);
+        }
+    }
+
+    private void NavigateToPhoto(int id)
+    {
+        Navigation.NavigateTo($"/photo/{id}");
+    }
+
+    private void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "ArrowLeft" && _adjacentPhotos?.PrevId != null)
+        {
+            NavigateToPrev();
+        }
+        else if (e.Key == "ArrowRight" && _adjacentPhotos?.NextId != null)
+        {
+            NavigateToNext();
+        }
+        else if (e.Key == "Escape")
+        {
+            GoBack();
+        }
     }
 
     private void GoBack()
