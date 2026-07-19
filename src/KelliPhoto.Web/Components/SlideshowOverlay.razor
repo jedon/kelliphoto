@@ -8,10 +8,18 @@
 @inject ILogger<SlideshowOverlay> Logger
 @implements IAsyncDisposable
 
-<div class="slideshow-overlay" @onkeydown="HandleKeyDown" tabindex="0" @ref="_overlayDiv" style="outline: none;">
-    <button type="button" class="slideshow-close" @onclick="CloseOverlayAsync" title="Close Slideshow (Esc)">
-        <i class="bi bi-x-lg"></i>
-    </button>
+<div class="slideshow-overlay @(IsImmersive ? "is-immersive" : "") @(_showChrome ? "show-chrome" : "")"
+     @onkeydown="HandleKeyDown"
+     @onmousemove="HandleMouseMove"
+     tabindex="0"
+     @ref="_overlayDiv"
+     style="outline: none;">
+    @if (!IsImmersive || _showChrome)
+    {
+        <button type="button" class="slideshow-close" @onclick="CloseOverlayAsync" title="Close Slideshow (Esc)">
+            <i class="bi bi-x-lg"></i>
+        </button>
+    }
 
     @if (Photos == null)
     {
@@ -31,34 +39,47 @@
     else
     {
         var currentPhoto = Photos[CurrentIndex];
+        var transitionClass = $"transition-{Settings.Transition.ToLowerInvariant()}";
 
-        <div class="slideshow-counter">
-            @(CurrentIndex + 1) / @Photos.Count
-        </div>
+        @if (!IsImmersive || _showChrome)
+        {
+            <div class="slideshow-counter">
+                @(CurrentIndex + 1) / @Photos.Count
+            </div>
+        }
 
         <div class="slideshow-main">
-            <!-- Large Left Arrow on click / hover -->
             <button type="button" class="slideshow-nav-arrow slideshow-nav-left" @onclick="PrevPhotoAsync" title="Previous Photo (Left Arrow)">
                 <i class="bi bi-chevron-left"></i>
             </button>
 
-            <!-- Image Container -->
             <div class="slideshow-image-wrapper">
-                <img @key="currentPhoto.Id"
-                     src="/api/images/web/@currentPhoto.Id?max=2000&watermark=true"
-                     alt="@currentPhoto.Filename"
-                     class="slideshow-image protected-image transition-@Settings.Transition.ToLowerInvariant()"
-                     draggable="false"
-                     oncontextmenu="return false;" />
+                <div class="slideshow-stage">
+                    @if (_outgoingPhotoId is int outgoingId && Settings.Transition != "None")
+                    {
+                        <img src="/api/images/web/@outgoingId?max=2000&watermark=true"
+                             alt=""
+                             class="slideshow-layer slideshow-layer--stacked slideshow-layer--exit @transitionClass protected-image"
+                             draggable="false"
+                             oncontextmenu="return false;"
+                             aria-hidden="true" />
+                    }
+
+                    <img @key="_enterAnimKey"
+                         src="/api/images/web/@currentPhoto.Id?max=2000&watermark=true"
+                         alt="@currentPhoto.Filename"
+                         class="slideshow-layer @(Settings.Transition != "None" && _outgoingPhotoId.HasValue ? "slideshow-layer--stacked" : "") slideshow-layer--enter @(Settings.Transition != "None" ? transitionClass : "transition-none") protected-image"
+                         draggable="false"
+                         oncontextmenu="return false;"
+                         @onload="OnIncomingImageLoaded" />
+                </div>
             </div>
 
-            <!-- Large Right Arrow on click / hover -->
             <button type="button" class="slideshow-nav-arrow slideshow-nav-right" @onclick="NextPhotoAsync" title="Next Photo (Right Arrow)">
                 <i class="bi bi-chevron-right"></i>
             </button>
         </div>
 
-        <!-- Controls Pill -->
         <div class="slideshow-controls">
             <button type="button" class="btn btn-link text-white p-1" @onclick="PrevPhotoAsync" title="Previous Photo (Left Arrow)">
                 <i class="bi bi-skip-start-fill fs-4"></i>
@@ -81,17 +102,20 @@
                 <i class="bi bi-skip-end-fill fs-4"></i>
             </button>
 
+            <button type="button" class="btn btn-link text-white p-1" @onclick="ToggleFullscreenAsync" title="@(IsImmersive ? "Exit fullscreen" : "Enter fullscreen")">
+                <i class="bi @(IsImmersive ? "bi-fullscreen-exit" : "bi-fullscreen") fs-5"></i>
+            </button>
+
             <button type="button" class="btn btn-link text-white p-1 @(ShowSettings ? "active" : "")" @onclick="ToggleSettings" title="Settings">
                 <i class="bi bi-gear-fill fs-4"></i>
             </button>
         </div>
 
-        <!-- Settings Panel -->
-        @if (ShowSettings)
+        @if (ShowSettings && (!IsImmersive || _showChrome))
         {
             <div class="slideshow-settings-panel" @onclick:stopPropagation="true">
                 <h5 class="h6 mb-3 text-white border-bottom border-secondary pb-2">Slideshow Settings</h5>
-                
+
                 <div class="mb-3">
                     <label class="form-label d-flex justify-content-between small text-white-50">
                         <span>Seconds per image:</span>
@@ -126,17 +150,29 @@
     [Parameter] public EventCallback OnClose { get; set; }
 
     private List<Photo>? Photos { get; set; }
-    private int CurrentIndex { get; set; } = 0;
+    private int CurrentIndex { get; set; }
     private bool IsPlaying { get; set; } = true;
-    private bool ShowSettings { get; set; } = false;
+    private bool ShowSettings { get; set; }
+    private bool IsImmersive { get; set; }
     private SlideshowSettings Settings { get; set; } = new();
 
     private ElementReference _overlayDiv;
     private IJSObjectReference? _jsModule;
+    private IJSObjectReference? _displaySubscription;
+    private DotNetObjectReference<SlideshowOverlay>? _dotNetRef;
     private System.Threading.Timer? _timer;
+    private System.Threading.Timer? _chromeHideTimer;
+    private CancellationTokenSource? _transitionCts;
+    private int? _outgoingPhotoId;
+    private int _enterAnimKey;
     private int _lastFocusedIndex = -1;
-    private bool _disposed = false;
-    private bool _lastShowSettings = false;
+    private bool _disposed;
+    private bool _lastShowSettings;
+    private bool _showChrome;
+    private DateTime _lastMouseMoveUtc = DateTime.MinValue;
+
+    private static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(700);
+    private static readonly TimeSpan SlideDuration = TimeSpan.FromMilliseconds(550);
 
     protected override async Task OnInitializedAsync()
     {
@@ -159,10 +195,13 @@
                         RestartTimer();
                     }
                 }
+
+                _dotNetRef = DotNetObjectReference.Create(this);
+                _displaySubscription = await _jsModule.InvokeAsync<IJSObjectReference>("subscribeDisplayMode", _dotNetRef);
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Error loading slideshow settings from localStorage");
+                Logger.LogError(ex, "Error initializing slideshow JS interop");
             }
             finally
             {
@@ -170,8 +209,7 @@
             }
         }
 
-        // Keep the overlay container focused so arrow/space keys work
-        if (Photos != null && Photos.Any() && !ShowSettings)
+        if (Photos != null && Photos.Any() && !ShowSettings && (!IsImmersive || _showChrome))
         {
             var settingsClosed = _lastShowSettings && !ShowSettings;
             if (_lastFocusedIndex != CurrentIndex || firstRender || settingsClosed)
@@ -183,6 +221,20 @@
         _lastShowSettings = ShowSettings;
     }
 
+    [JSInvokable]
+    public Task OnDisplayModeChanged(bool immersive)
+    {
+        if (_disposed || IsImmersive == immersive) return Task.CompletedTask;
+
+        IsImmersive = immersive;
+        if (IsImmersive)
+        {
+            ShowSettings = false;
+            _showChrome = false;
+        }
+        return InvokeAsync(StateHasChanged);
+    }
+
     private async Task FocusOverlayAsync()
     {
         try
@@ -191,7 +243,7 @@
         }
         catch
         {
-            // Ignore focus errors during static prerendering or when element is disposed
+            // Ignore focus errors during prerender/dispose
         }
     }
 
@@ -202,17 +254,15 @@
             var authState = await AuthStateProvider.GetAuthenticationStateAsync();
             var isAdmin = authState.User.IsInRole(RoleNames.Admin);
 
-            // Fetch all photos for current folder (non-recursive)
             var allPhotos = await PhotoService.GetAllPhotosByFolderIdAsync(FolderId);
-            
-            // Filter by IsVisible for public users
-            Photos = isAdmin 
-                ? allPhotos 
+            Photos = isAdmin
+                ? allPhotos
                 : allPhotos.Where(p => p.IsVisible).ToList();
 
             if (Photos.Any())
             {
                 CurrentIndex = 0;
+                _enterAnimKey++;
                 if (IsPlaying)
                 {
                     StartTimer();
@@ -266,7 +316,6 @@
                 }
                 catch (Exception ex) when (ex is ObjectDisposedException or JSDisconnectedException)
                 {
-                    // Ignore post-dispose or disconnected exceptions
                 }
                 catch (Exception ex)
                 {
@@ -276,8 +325,86 @@
         }
         catch (Exception ex) when (ex is ObjectDisposedException or JSDisconnectedException)
         {
-            // Ignore post-dispose or disconnected exceptions from InvokeAsync itself
         }
+    }
+
+    private async Task GoToIndexAsync(int newIndex)
+    {
+        if (Photos == null || !Photos.Any() || newIndex == CurrentIndex) return;
+
+        var previousId = Photos[CurrentIndex].Id;
+        CurrentIndex = newIndex;
+        _enterAnimKey++;
+
+        if (Settings.Transition != "None")
+        {
+            _outgoingPhotoId = previousId;
+            ScheduleClearOutgoing();
+        }
+        else
+        {
+            _outgoingPhotoId = null;
+        }
+
+        RestartTimer();
+        PrefetchNearby();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ScheduleClearOutgoing()
+    {
+        _transitionCts?.Cancel();
+        _transitionCts?.Dispose();
+        _transitionCts = new CancellationTokenSource();
+        var token = _transitionCts.Token;
+        var delay = Settings.Transition == "Slide" ? SlideDuration : FadeDuration;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(delay, token);
+                if (token.IsCancellationRequested || _disposed) return;
+                await InvokeAsync(() =>
+                {
+                    _outgoingPhotoId = null;
+                    StateHasChanged();
+                });
+            }
+            catch (TaskCanceledException)
+            {
+            }
+        }, token);
+    }
+
+    private void PrefetchNearby()
+    {
+        if (Photos == null || Photos.Count < 2) return;
+
+        // Warm the browser cache for neighbors (best-effort; no await).
+        var next = CurrentIndex < Photos.Count - 1 ? CurrentIndex + 1 : (Settings.Loop ? 0 : -1);
+        var prev = CurrentIndex > 0 ? CurrentIndex - 1 : (Settings.Loop ? Photos.Count - 1 : -1);
+        _ = PrefetchIdAsync(next >= 0 ? Photos[next].Id : null);
+        _ = PrefetchIdAsync(prev >= 0 ? Photos[prev].Id : null);
+    }
+
+    private async Task PrefetchIdAsync(int? photoId)
+    {
+        if (photoId is null || _jsModule is null) return;
+        try
+        {
+            await _jsModule.InvokeVoidAsync("prefetchImage",
+                $"/api/images/web/{photoId}?max=2000&watermark=true");
+        }
+        catch
+        {
+            // Prefetch is optional
+        }
+    }
+
+    private void OnIncomingImageLoaded()
+    {
+        // Dual-layer CSS handles transition timing; load event kept for future hooks.
     }
 
     private async Task NextPhotoAsync()
@@ -286,20 +413,17 @@
 
         if (CurrentIndex < Photos.Count - 1)
         {
-            CurrentIndex++;
+            await GoToIndexAsync(CurrentIndex + 1);
         }
         else if (Settings.Loop)
         {
-            CurrentIndex = 0;
+            await GoToIndexAsync(0);
         }
         else
         {
             IsPlaying = false;
             StopTimer();
         }
-
-        RestartTimer();
-        await InvokeAsync(StateHasChanged);
     }
 
     private async Task PrevPhotoAsync()
@@ -308,15 +432,12 @@
 
         if (CurrentIndex > 0)
         {
-            CurrentIndex--;
+            await GoToIndexAsync(CurrentIndex - 1);
         }
         else if (Settings.Loop)
         {
-            CurrentIndex = Photos.Count - 1;
+            await GoToIndexAsync(Photos.Count - 1);
         }
-
-        RestartTimer();
-        await InvokeAsync(StateHasChanged);
     }
 
     private void TogglePlay()
@@ -336,6 +457,51 @@
     private void ToggleSettings()
     {
         ShowSettings = !ShowSettings;
+        if (ShowSettings)
+        {
+            RevealChrome();
+        }
+    }
+
+    private async Task ToggleFullscreenAsync()
+    {
+        if (_jsModule is null) return;
+        try
+        {
+            await _jsModule.InvokeAsync<bool>("toggleFullscreen", _overlayDiv);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error toggling slideshow fullscreen");
+        }
+    }
+
+    private void HandleMouseMove()
+    {
+        if (!IsImmersive) return;
+
+        // Throttle StateHasChanged noise
+        var now = DateTime.UtcNow;
+        if ((now - _lastMouseMoveUtc).TotalMilliseconds < 200 && _showChrome) return;
+        _lastMouseMoveUtc = now;
+        RevealChrome();
+    }
+
+    private void RevealChrome()
+    {
+        _showChrome = true;
+        _chromeHideTimer?.Dispose();
+        _chromeHideTimer = new System.Threading.Timer(_ =>
+        {
+            if (_disposed) return;
+            _ = InvokeAsync(() =>
+            {
+                if (ShowSettings) return;
+                _showChrome = false;
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(2.5), Timeout.InfiniteTimeSpan);
+        StateHasChanged();
     }
 
     private async Task OnSecondsChanged(ChangeEventArgs e)
@@ -392,8 +558,24 @@
         {
             await NextPhotoAsync();
         }
+        else if (e.Key == "f" || e.Key == "F")
+        {
+            await ToggleFullscreenAsync();
+        }
         else if (e.Key == "Escape")
         {
+            if (IsImmersive && _jsModule != null)
+            {
+                try
+                {
+                    await _jsModule.InvokeVoidAsync("exitFullscreen");
+                    return;
+                }
+                catch
+                {
+                    // Fall through to close if exit fails (e.g. F11-only immersive)
+                }
+            }
             await CloseOverlayAsync();
         }
     }
@@ -401,6 +583,17 @@
     private async Task CloseOverlayAsync()
     {
         StopTimer();
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("exitFullscreen");
+            }
+            catch
+            {
+            }
+        }
+
         if (OnClose.HasDelegate)
         {
             await OnClose.InvokeAsync();
@@ -411,6 +604,21 @@
     {
         _disposed = true;
         StopTimer();
+        _chromeHideTimer?.Dispose();
+        _transitionCts?.Cancel();
+        _transitionCts?.Dispose();
+
+        if (_displaySubscription != null)
+        {
+            try
+            {
+                await _displaySubscription.InvokeVoidAsync("dispose");
+                await _displaySubscription.DisposeAsync();
+            }
+            catch
+            {
+            }
+        }
 
         if (_jsModule != null)
         {
@@ -420,12 +628,13 @@
             }
             catch (InvalidOperationException)
             {
-                // Component may be disposing during prerender/shutdown
             }
             catch (Exception ex)
             {
                 Logger.LogError(ex, "Error disposing slideshow settings JS module");
             }
         }
+
+        _dotNetRef?.Dispose();
     }
 }
