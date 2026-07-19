@@ -88,7 +88,7 @@
         <!-- Settings Panel -->
         @if (ShowSettings)
         {
-            <div class="slideshow-settings-panel" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
+            <div class="slideshow-settings-panel" @onclick:stopPropagation="true">
                 <h5 class="h6 mb-3 text-white border-bottom border-secondary pb-2">Slideshow Settings</h5>
                 
                 <div class="mb-3">
@@ -151,6 +151,10 @@
                 if (savedSettings != null)
                 {
                     Settings = savedSettings;
+                    if (IsPlaying && Photos != null && Photos.Any())
+                    {
+                        RestartTimer();
+                    }
                 }
             }
             catch (Exception ex)
