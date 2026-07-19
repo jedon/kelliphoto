@@ -1,24 +1,25 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using KelliPhoto.Web.Data.Models;
 using Microsoft.Extensions.Caching.Memory;
-using Serilog;
+using Microsoft.Extensions.Logging;
 
 namespace KelliPhoto.Web.Services;
 
 public class HomePageCache : IHomePageCache
 {
     private readonly IMemoryCache _cache;
-    private readonly Serilog.ILogger _logger;
+    private readonly ILogger<HomePageCache> _logger;
     private readonly ConcurrentDictionary<string, byte> _keys = new();
     private static readonly TimeSpan CacheDuration = TimeSpan.FromMinutes(10);
 
-    public HomePageCache(IMemoryCache cache)
+    public HomePageCache(IMemoryCache cache, ILogger<HomePageCache> logger)
     {
         _cache = cache;
-        _logger = Serilog.Log.ForContext<HomePageCache>();
+        _logger = logger;
     }
 
     public async Task<Folder?> GetHighlightsFolderAsync(Func<Task<Folder?>> factory)
@@ -30,14 +31,17 @@ public class HomePageCache : IHomePageCache
         {
             isMiss = true;
             entry.AbsoluteExpirationRelativeToNow = CacheDuration;
-            _keys.TryAdd(key, 0);
-            _logger.Information("Cache miss for key {Key}. Fetching from factory.", key);
+            _logger.LogDebug("Cache miss for key {Key}. Fetching from factory.", key);
             return await factory();
         });
 
-        if (!isMiss)
+        if (isMiss)
         {
-            _logger.Information("Cache hit for key {Key}.", key);
+            _keys.TryAdd(key, 0);
+        }
+        else
+        {
+            _logger.LogDebug("Cache hit for key {Key}.", key);
         }
 
         return result;
@@ -52,14 +56,17 @@ public class HomePageCache : IHomePageCache
         {
             isMiss = true;
             entry.AbsoluteExpirationRelativeToNow = CacheDuration;
-            _keys.TryAdd(key, 0);
-            _logger.Information("Cache miss for key {Key}. Fetching from factory.", key);
+            _logger.LogDebug("Cache miss for key {Key}. Fetching from factory.", key);
             return await factory();
         });
 
-        if (!isMiss)
+        if (isMiss)
         {
-            _logger.Information("Cache hit for key {Key}.", key);
+            _keys.TryAdd(key, 0);
+        }
+        else
+        {
+            _logger.LogDebug("Cache hit for key {Key}.", key);
         }
 
         return result ?? new List<Photo>();
@@ -67,11 +74,14 @@ public class HomePageCache : IHomePageCache
 
     public void Invalidate()
     {
-        _logger.Information("Invalidating home page cache. Clearing {Count} keys.", _keys.Count);
-        foreach (var key in _keys.Keys)
+        var keysToInvalidate = _keys.Keys.ToList();
+        _logger.LogInformation("Invalidating home page cache. Clearing {Count} keys.", keysToInvalidate.Count);
+        foreach (var key in keysToInvalidate)
         {
-            _cache.Remove(key);
+            if (_keys.TryRemove(key, out _))
+            {
+                _cache.Remove(key);
+            }
         }
-        _keys.Clear();
     }
 }

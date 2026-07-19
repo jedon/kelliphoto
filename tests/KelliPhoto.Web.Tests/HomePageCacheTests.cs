@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using KelliPhoto.Web.Data.Models;
 using KelliPhoto.Web.Services;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
 
 namespace KelliPhoto.Web.Tests;
@@ -16,7 +17,7 @@ public class HomePageCacheTests : IDisposable
     public HomePageCacheTests()
     {
         _memoryCache = new MemoryCache(new MemoryCacheOptions());
-        _cache = new HomePageCache(_memoryCache);
+        _cache = new HomePageCache(_memoryCache, NullLogger<HomePageCache>.Instance);
     }
 
     [Fact]

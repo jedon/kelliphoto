@@ -28,14 +28,13 @@ public class PhotoService : IPhotoService
 
     public async Task<List<Photo>> GetPhotosByFolderIdAsync(int folderId, int skip = 0, int take = 50, bool includeHidden = false)
     {
-        _logger.LogInformation("GetPhotosByFolderIdAsync called: FolderId={FolderId}, Skip={Skip}, Take={Take}, IncludeHidden={IncludeHidden}", 
+        _logger.LogDebug("GetPhotosByFolderIdAsync called: FolderId={FolderId}, Skip={Skip}, Take={Take}, IncludeHidden={IncludeHidden}", 
             folderId, skip, take, includeHidden);
         
         await using var context = await _contextFactory.CreateDbContextAsync();
         
         try
         {
-            // Log the query being built
             var query = context.Photos
                 .AsNoTracking()
                 .Where(p => p.FolderId == folderId);
@@ -51,37 +50,12 @@ public class PhotoService : IPhotoService
                 .Skip(skip)
                 .Take(take);
             
-            // First, let's check how many photos exist for this folder
-            var totalCount = await context.Photos
-                .AsNoTracking()
-                .CountAsync(p => p.FolderId == folderId);
-            
-            _logger.LogInformation("Total photos in database for FolderId={FolderId}: {Count}", folderId, totalCount);
-            
-            // Execute the query and ensure distinct results by ID
             var photos = await query.ToListAsync();
             
             // Remove duplicates by ID (in case of any data inconsistencies)
             photos = photos.GroupBy(p => p.Id).Select(g => g.First()).ToList();
             
             _logger.LogInformation("SQL query returned {Count} distinct photos for FolderId={FolderId}", photos.Count, folderId);
-            
-            if (photos.Count > 0)
-            {
-                var firstResolved = _pathService.ResolveExistingPhotoFilePath(photos[0].FilePath);
-                var firstPrimary = _pathService.GetFullPath(photos[0].FilePath);
-                _logger.LogInformation("First photo details: Id={Id}, Filename={Filename}, PrimaryPath={PrimaryPath}, ResolvedPath={ResolvedPath}, FileExists={FileExists}", 
-                    photos[0].Id, 
-                    photos[0].Filename, 
-                    firstPrimary,
-                    firstResolved ?? "(none)",
-                    firstResolved != null);
-            }
-            else
-            {
-                _logger.LogWarning("No photos returned from database for FolderId={FolderId}. Total count in DB: {TotalCount}", 
-                    folderId, totalCount);
-            }
             
             return photos;
         }
