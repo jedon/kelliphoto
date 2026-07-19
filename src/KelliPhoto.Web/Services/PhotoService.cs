@@ -657,4 +657,52 @@ public class PhotoService : IPhotoService
             .OrderByDescending(p => p.TakenAt ?? p.CreatedAt)
             .ToListAsync();
     }
+
+    public async Task<AdjacentPhotos?> GetAdjacentPhotoIdsAsync(int photoId, bool includeHidden = false)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var currentPhoto = await context.Photos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == photoId);
+
+        if (currentPhoto == null)
+        {
+            return null;
+        }
+
+        if (!includeHidden && !currentPhoto.IsVisible)
+        {
+            return null;
+        }
+
+        var query = context.Photos
+            .AsNoTracking()
+            .Where(p => p.FolderId == currentPhoto.FolderId);
+
+        if (!includeHidden)
+        {
+            query = query.Where(p => p.IsVisible);
+        }
+
+        var orderedIds = await query
+            .OrderByDescending(p => p.TakenAt ?? p.CreatedAt)
+            .ThenByDescending(p => p.Id)
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        int indexInList = orderedIds.IndexOf(photoId);
+        if (indexInList == -1)
+        {
+            return null;
+        }
+
+        int index = indexInList + 1;
+        int total = orderedIds.Count;
+
+        int? prevId = indexInList > 0 ? orderedIds[indexInList - 1] : null;
+        int? nextId = indexInList < total - 1 ? orderedIds[indexInList + 1] : null;
+
+        return new AdjacentPhotos(prevId, nextId, index, total);
+    }
 }
