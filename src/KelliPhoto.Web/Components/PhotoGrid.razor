@@ -408,16 +408,7 @@
         try
         {
             var previousCount = Photos.Count;
-            List<Photo> photos;
-            if (UseHomePageCache)
-            {
-                photos = await HomePageCache.GetFirstPagePhotosAsync(FolderId, PageSize, EditMode, 
-                    () => PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode));
-            }
-            else
-            {
-                photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode);
-            }
+            List<Photo> photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode);
             
             if (photos != null && photos.Count > previousCount)
             {

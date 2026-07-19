@@ -30,16 +30,20 @@ public class HomePageCache : IHomePageCache
         var result = await _cache.GetOrCreateAsync(key, async entry =>
         {
             isMiss = true;
+            _keys.TryAdd(key, 0);
             entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            entry.RegisterPostEvictionCallback((evictedKey, value, reason, state) =>
+            {
+                if (evictedKey is string k)
+                {
+                    _keys.TryRemove(k, out _);
+                }
+            });
             _logger.LogDebug("Cache miss for key {Key}. Fetching from factory.", key);
             return await factory();
         });
 
-        if (isMiss)
-        {
-            _keys.TryAdd(key, 0);
-        }
-        else
+        if (!isMiss)
         {
             _logger.LogDebug("Cache hit for key {Key}.", key);
         }
@@ -55,21 +59,26 @@ public class HomePageCache : IHomePageCache
         var result = await _cache.GetOrCreateAsync(key, async entry =>
         {
             isMiss = true;
+            _keys.TryAdd(key, 0);
             entry.AbsoluteExpirationRelativeToNow = CacheDuration;
+            entry.RegisterPostEvictionCallback((evictedKey, value, reason, state) =>
+            {
+                if (evictedKey is string k)
+                {
+                    _keys.TryRemove(k, out _);
+                }
+            });
             _logger.LogDebug("Cache miss for key {Key}. Fetching from factory.", key);
-            return await factory();
+            var photos = await factory();
+            return photos?.ToList();
         });
 
-        if (isMiss)
-        {
-            _keys.TryAdd(key, 0);
-        }
-        else
+        if (!isMiss)
         {
             _logger.LogDebug("Cache hit for key {Key}.", key);
         }
 
-        return result ?? new List<Photo>();
+        return result?.ToList() ?? new List<Photo>();
     }
 
     public void Invalidate()

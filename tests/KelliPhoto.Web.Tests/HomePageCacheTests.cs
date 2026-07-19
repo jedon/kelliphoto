@@ -60,8 +60,10 @@ public class HomePageCacheTests : IDisposable
 
         // Assert
         Assert.Equal(1, factoryCalls);
-        Assert.Same(photos, result1);
-        Assert.Same(photos, result2);
+        Assert.NotSame(photos, result1);
+        Assert.NotSame(result1, result2);
+        Assert.Equal(photos, result1);
+        Assert.Equal(photos, result2);
     }
 
     [Fact]
@@ -132,22 +134,26 @@ public class HomePageCacheTests : IDisposable
         // First call with includeHidden = false
         var res1 = await _cache.GetFirstPagePhotosAsync(1, 10, includeHidden: false, falseFactory);
         Assert.Equal(1, falseCalls);
-        Assert.Same(falsePhotos, res1);
+        Assert.NotSame(falsePhotos, res1);
+        Assert.Equal(falsePhotos, res1);
 
         // Second call with includeHidden = true - should NOT hit cache from the false call
         var res2 = await _cache.GetFirstPagePhotosAsync(1, 10, includeHidden: true, trueFactory);
         Assert.Equal(1, trueCalls);
-        Assert.Same(truePhotos, res2);
+        Assert.NotSame(truePhotos, res2);
+        Assert.Equal(truePhotos, res2);
 
         // Third call with includeHidden = false - should hit cache
         var res3 = await _cache.GetFirstPagePhotosAsync(1, 10, includeHidden: false, falseFactory);
         Assert.Equal(1, falseCalls); // Still 1
-        Assert.Same(falsePhotos, res3);
+        Assert.NotSame(falsePhotos, res3);
+        Assert.Equal(falsePhotos, res3);
 
         // Fourth call with includeHidden = true - should hit cache
         var res4 = await _cache.GetFirstPagePhotosAsync(1, 10, includeHidden: true, trueFactory);
         Assert.Equal(1, trueCalls); // Still 1
-        Assert.Same(truePhotos, res4);
+        Assert.NotSame(truePhotos, res4);
+        Assert.Equal(truePhotos, res4);
     }
 
     public void Dispose()
