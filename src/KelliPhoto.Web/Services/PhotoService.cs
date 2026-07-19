@@ -44,6 +44,7 @@ public class PhotoService : IPhotoService
             
             query = query
                 .OrderByDescending(p => p.TakenAt ?? p.CreatedAt)
+                .ThenByDescending(p => p.Id)
                 .Skip(skip)
                 .Take(take);
             
@@ -655,6 +656,7 @@ public class PhotoService : IPhotoService
             .AsNoTracking()
             .Where(p => p.FolderId == folderId)
             .OrderByDescending(p => p.TakenAt ?? p.CreatedAt)
+            .ThenByDescending(p => p.Id)
             .ToListAsync();
     }
 

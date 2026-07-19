@@ -88,6 +88,7 @@ else
     private AdjacentPhotos? _adjacentPhotos;
     private bool _notFound;
     private ElementReference _viewerDiv;
+    private int? _lastFocusedPhotoId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -101,15 +102,20 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (Photo != null)
+        if (Photo != null && (_lastFocusedPhotoId != Photo.Id || firstRender))
         {
+            _lastFocusedPhotoId = Photo.Id;
             try
             {
                 await _viewerDiv.FocusAsync();
             }
-            catch
+            catch (Microsoft.JSInterop.JSException)
             {
                 // Ignore focus errors
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore focus errors when JS is not available/interop is active or element is disposed
             }
         }
     }
@@ -160,7 +166,7 @@ else
         Navigation.NavigateTo($"/photo/{id}");
     }
 
-    private async Task HandleKeyDown(KeyboardEventArgs e)
+    private void HandleKeyDown(KeyboardEventArgs e)
     {
         if (e.Key == "ArrowLeft" && _adjacentPhotos?.PrevId != null)
         {

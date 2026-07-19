@@ -129,6 +129,41 @@ public class AdjacentPhotoTests : IDisposable
         Assert.Equal(3, adminResult2.Total);
     }
 
+    [Fact]
+    public async Task GetAdjacentPhotoIdsAsync_SameTakenAt_TieBreaksWithId()
+    {
+        var folder = await AddFolderAsync("FolderSameTakenAt");
+        var takenAt = new DateTime(2026, 1, 1);
+        
+        // photo1 has smaller ID
+        var photo1 = await AddPhotoAsync("photo1.jpg", folder.Id, takenAt: takenAt);
+        // photo2 has larger ID
+        var photo2 = await AddPhotoAsync("photo2.jpg", folder.Id, takenAt: takenAt);
+
+        // GetPhotosByFolderIdAsync should return photos ordered by TakenAt descending, then Id descending
+        // So photo2 (larger Id) should come first, then photo1 (smaller Id)
+        var photos = await _photoService.GetPhotosByFolderIdAsync(folder.Id, skip: 0, take: 10);
+        Assert.Equal(2, photos.Count);
+        Assert.Equal(photo2.Id, photos[0].Id);
+        Assert.Equal(photo1.Id, photos[1].Id);
+
+        // For photo2 (first in list)
+        var result2 = await _photoService.GetAdjacentPhotoIdsAsync(photo2.Id);
+        Assert.NotNull(result2);
+        Assert.Null(result2.PrevId);
+        Assert.Equal(photo1.Id, result2.NextId);
+        Assert.Equal(1, result2.Index);
+        Assert.Equal(2, result2.Total);
+
+        // For photo1 (second in list)
+        var result1 = await _photoService.GetAdjacentPhotoIdsAsync(photo1.Id);
+        Assert.NotNull(result1);
+        Assert.Equal(photo2.Id, result1.PrevId);
+        Assert.Null(result1.NextId);
+        Assert.Equal(2, result1.Index);
+        Assert.Equal(2, result1.Total);
+    }
+
     private async Task<Folder> AddFolderAsync(string name)
     {
         var folder = new Folder
