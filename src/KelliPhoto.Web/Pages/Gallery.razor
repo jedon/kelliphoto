@@ -18,7 +18,22 @@
 
     @if (DisplayFolderId.HasValue)
     {
+        <div class="gallery-toolbar mb-3 d-flex justify-content-end">
+            <button type="button" 
+                    class="btn btn-outline-secondary d-inline-flex align-items-center gap-2" 
+                    @onclick="() => isSlideshowOpen = true" 
+                    disabled="@(photoCount == 0)"
+                    title="Start Slideshow">
+                <i class="bi bi-play-fill fs-5"></i> Slideshow
+            </button>
+        </div>
+
         <PhotoGrid FolderId="DisplayFolderId.Value" />
+
+        @if (isSlideshowOpen)
+        {
+            <SlideshowOverlay FolderId="DisplayFolderId.Value" OnClose="() => isSlideshowOpen = false" />
+        }
     }
 </div>
 
@@ -28,6 +43,8 @@
     private int? DisplayFolderId { get; set; }
     private int? _lastProcessedFolderId;
     private bool isAdmin;
+    private bool isSlideshowOpen = false;
+    private int photoCount = 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -60,6 +77,7 @@
             if (!isAdmin && !await PhotoService.CanPublicViewFolderAsync(FolderId.Value))
             {
                 DisplayFolderId = null;
+                photoCount = 0;
                 return;
             }
 
@@ -70,11 +88,23 @@
             var homePageHighlights = await FolderService.GetFolderByNameAsync("Home Page Highlights");
             DisplayFolderId = homePageHighlights?.Id;
         }
+
+        if (DisplayFolderId.HasValue)
+        {
+            photoCount = await PhotoService.GetPhotoCountByFolderIdAsync(DisplayFolderId.Value, includeHidden: isAdmin);
+        }
+        else
+        {
+            photoCount = 0;
+        }
     }
 
-    private Task HandleFoldersChanged()
+    private async Task HandleFoldersChanged()
     {
+        if (DisplayFolderId.HasValue)
+        {
+            photoCount = await PhotoService.GetPhotoCountByFolderIdAsync(DisplayFolderId.Value, includeHidden: isAdmin);
+        }
         StateHasChanged();
-        return Task.CompletedTask;
     }
 }

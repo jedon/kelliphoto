@@ -1,0 +1,272 @@
+.slideshow-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(10, 10, 10, 0.98);
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    color: #fff;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.slideshow-loading,
+.slideshow-empty {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    height: 100%;
+}
+
+.slideshow-close {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(40, 40, 40, 0.5);
+    border: none;
+    color: #fff;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 1060;
+    opacity: 0.5;
+    transition: all 0.3s ease;
+}
+
+.slideshow-close:hover {
+    opacity: 1;
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.slideshow-counter {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: rgba(40, 40, 40, 0.5);
+    color: rgba(255, 255, 255, 0.85);
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 1060;
+    pointer-events: none;
+}
+
+.slideshow-main {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.slideshow-image-wrapper {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 60px 80px 100px 80px; /* Leave space for top header and bottom controls */
+}
+
+.slideshow-image {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8);
+    background-color: #000;
+}
+
+/* Nav arrows on sides */
+.slideshow-nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-size: 2.5rem;
+    padding: 40px 20px;
+    cursor: pointer;
+    z-index: 1055;
+    opacity: 0;
+    transition: opacity 0.3s ease, background 0.3s ease;
+}
+
+.slideshow-nav-left {
+    left: 10px;
+}
+
+.slideshow-nav-right {
+    right: 10px;
+}
+
+/* Show arrows on hover of their regions */
+.slideshow-main:hover .slideshow-nav-arrow {
+    opacity: 0.3;
+}
+
+.slideshow-nav-arrow:hover {
+    opacity: 1 !important;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+/* Bottom Floating Controls Pill */
+.slideshow-controls {
+    position: absolute;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: rgba(25, 25, 25, 0.65);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 8px 24px;
+    border-radius: 40px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    z-index: 1060;
+    opacity: 0.5;
+    transition: opacity 0.4s ease, border-color 0.4s ease;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+}
+
+.slideshow-controls:hover {
+    opacity: 1;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.slideshow-controls .btn-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+    opacity: 0.8;
+}
+
+.slideshow-controls .btn-link:hover {
+    transform: scale(1.1);
+    opacity: 1;
+}
+
+.slideshow-controls .btn-link.active {
+    color: #0d6efd !important;
+    opacity: 1;
+}
+
+/* Settings Panel */
+.slideshow-settings-panel {
+    position: absolute;
+    bottom: 95px; /* Directly above the control bar */
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 20, 20, 0.95);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    padding: 24px;
+    width: 320px;
+    backdrop-filter: blur(25px);
+    -webkit-backdrop-filter: blur(25px);
+    z-index: 1070;
+    color: #fff;
+    box-shadow: 0 15px 45px rgba(0, 0, 0, 0.7);
+    animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideUp {
+    from {
+        transform: translate(-50%, 20px);
+        opacity: 0;
+    }
+    to {
+        transform: translate(-50%, 0);
+        opacity: 1;
+    }
+}
+
+/* Transition animations */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideIn {
+    from {
+        transform: translateX(60px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.transition-fade {
+    animation: fadeIn 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.transition-slide {
+    animation: slideIn 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.transition-none {
+    animation: none;
+}
+
+/* Range input styling */
+.slideshow-settings-panel .form-range::-webkit-slider-runnable-track {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 3px;
+}
+.slideshow-settings-panel .form-range::-webkit-slider-thumb {
+    background: #fff;
+    border: none;
+    box-shadow: 0 0 5px rgba(0,0,0,0.5);
+}
+
+/* Form switch overrides */
+.slideshow-settings-panel .form-check-input {
+    cursor: pointer;
+}
+.slideshow-settings-panel .form-check-input:checked {
+    background-color: #0d6efd;
+    border-color: #0d6efd;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .slideshow-image-wrapper {
+        padding: 60px 20px 100px 20px;
+    }
+    .slideshow-nav-arrow {
+        display: none; /* Hide huge side arrows on mobile */
+    }
+    .slideshow-controls {
+        bottom: 20px;
+        padding: 6px 16px;
+        gap: 12px;
+    }
+    .slideshow-settings-panel {
+        bottom: 85px;
+        width: 290px;
+        padding: 16px;
+    }
+}

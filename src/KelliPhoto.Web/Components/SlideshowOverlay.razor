@@ -1,0 +1,380 @@
+@using KelliPhoto.Web.Models
+@using KelliPhoto.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
+@inject IPhotoService PhotoService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JSRuntime
+@inject ILogger<SlideshowOverlay> Logger
+@implements IDisposable
+
+<div class="slideshow-overlay" @onkeydown="HandleKeyDown" tabindex="0" @ref="_overlayDiv" style="outline: none;">
+    <button type="button" class="slideshow-close" @onclick="CloseOverlayAsync" title="Close Slideshow (Esc)">
+        <i class="bi bi-x-lg"></i>
+    </button>
+
+    @if (Photos == null)
+    {
+        <div class="slideshow-loading">
+            <div class="spinner-border text-light" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+        </div>
+    }
+    else if (!Photos.Any())
+    {
+        <div class="slideshow-empty">
+            <p>No photos in this folder.</p>
+            <button class="btn btn-outline-light btn-sm mt-2" @onclick="CloseOverlayAsync">Close</button>
+        </div>
+    }
+    else
+    {
+        var currentPhoto = Photos[CurrentIndex];
+
+        <div class="slideshow-counter">
+            @(CurrentIndex + 1) / @Photos.Count
+        </div>
+
+        <div class="slideshow-main">
+            <!-- Large Left Arrow on click / hover -->
+            <button type="button" class="slideshow-nav-arrow slideshow-nav-left" @onclick="PrevPhotoAsync" title="Previous Photo (Left Arrow)">
+                <i class="bi bi-chevron-left"></i>
+            </button>
+
+            <!-- Image Container -->
+            <div class="slideshow-image-wrapper">
+                <img @key="currentPhoto.Id"
+                     src="/api/images/web/@currentPhoto.Id?max=2000&watermark=true"
+                     alt="@currentPhoto.Filename"
+                     class="slideshow-image protected-image transition-@Settings.Transition.ToLowerInvariant()"
+                     draggable="false"
+                     oncontextmenu="return false;" />
+            </div>
+
+            <!-- Large Right Arrow on click / hover -->
+            <button type="button" class="slideshow-nav-arrow slideshow-nav-right" @onclick="NextPhotoAsync" title="Next Photo (Right Arrow)">
+                <i class="bi bi-chevron-right"></i>
+            </button>
+        </div>
+
+        <!-- Controls Pill -->
+        <div class="slideshow-controls">
+            <button type="button" class="btn btn-link text-white p-1" @onclick="PrevPhotoAsync" title="Previous Photo (Left Arrow)">
+                <i class="bi bi-skip-start-fill fs-4"></i>
+            </button>
+
+            @if (IsPlaying)
+            {
+                <button type="button" class="btn btn-link text-white p-1" @onclick="TogglePlay" title="Pause (Space)">
+                    <i class="bi bi-pause-fill fs-3"></i>
+                </button>
+            }
+            else
+            {
+                <button type="button" class="btn btn-link text-white p-1" @onclick="TogglePlay" title="Play (Space)">
+                    <i class="bi bi-play-fill fs-3"></i>
+                </button>
+            }
+
+            <button type="button" class="btn btn-link text-white p-1" @onclick="NextPhotoAsync" title="Next Photo (Right Arrow)">
+                <i class="bi bi-skip-end-fill fs-4"></i>
+            </button>
+
+            <button type="button" class="btn btn-link text-white p-1 @(ShowSettings ? "active" : "")" @onclick="ToggleSettings" title="Settings">
+                <i class="bi bi-gear-fill fs-4"></i>
+            </button>
+        </div>
+
+        <!-- Settings Panel -->
+        @if (ShowSettings)
+        {
+            <div class="slideshow-settings-panel" @onclick:stopPropagation="true" @onkeydown:stopPropagation="true">
+                <h5 class="h6 mb-3 text-white border-bottom border-secondary pb-2">Slideshow Settings</h5>
+                
+                <div class="mb-3">
+                    <label class="form-label d-flex justify-content-between small text-white-50">
+                        <span>Seconds per image:</span>
+                        <span class="text-white fw-bold">@Settings.SecondsPerImage s</span>
+                    </label>
+                    <input type="range" class="form-range" min="3" max="30" step="1"
+                           value="@Settings.SecondsPerImage" @onchange="OnSecondsChanged" />
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label small text-white-50">Transition effect:</label>
+                    <select class="form-select form-select-sm bg-dark text-white border-secondary"
+                            value="@Settings.Transition" @onchange="OnTransitionChanged">
+                        <option value="None">None</option>
+                        <option value="Fade">Fade</option>
+                        <option value="Slide">Slide</option>
+                    </select>
+                </div>
+
+                <div class="form-check form-switch small">
+                    <input class="form-check-input" type="checkbox" id="loopSwitch"
+                           checked="@Settings.Loop" @onchange="OnLoopChanged" />
+                    <label class="form-check-label text-white-50" for="loopSwitch">Loop playlist</label>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public int FolderId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    private List<Photo>? Photos { get; set; }
+    private int CurrentIndex { get; set; } = 0;
+    private bool IsPlaying { get; set; } = true;
+    private bool ShowSettings { get; set; } = false;
+    private SlideshowSettings Settings { get; set; } = new();
+
+    private ElementReference _overlayDiv;
+    private IJSObjectReference? _jsModule;
+    private System.Threading.Timer? _timer;
+    private int _lastFocusedIndex = -1;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadPhotosAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                _jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/slideshowSettings.js");
+                var savedSettings = await _jsModule.InvokeAsync<SlideshowSettings>("getSettings");
+                if (savedSettings != null)
+                {
+                    Settings = savedSettings;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error loading slideshow settings from localStorage");
+            }
+            finally
+            {
+                StateHasChanged();
+            }
+        }
+
+        // Keep the overlay container focused so arrow/space keys work
+        if (Photos != null && Photos.Any() && (_lastFocusedIndex != CurrentIndex || firstRender))
+        {
+            _lastFocusedIndex = CurrentIndex;
+            await FocusOverlayAsync();
+        }
+    }
+
+    private async Task FocusOverlayAsync()
+    {
+        try
+        {
+            await _overlayDiv.FocusAsync();
+        }
+        catch
+        {
+            // Ignore focus errors during static prerendering or when element is disposed
+        }
+    }
+
+    private async Task LoadPhotosAsync()
+    {
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var isAdmin = authState.User.IsInRole(RoleNames.Admin);
+
+            // Fetch all photos for current folder (non-recursive)
+            var allPhotos = await PhotoService.GetAllPhotosByFolderIdAsync(FolderId);
+            
+            // Filter by IsVisible for public users
+            Photos = isAdmin 
+                ? allPhotos 
+                : allPhotos.Where(p => p.IsVisible).ToList();
+
+            if (Photos.Any())
+            {
+                CurrentIndex = 0;
+                if (IsPlaying)
+                {
+                    StartTimer();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading photos for slideshow in folder {FolderId}", FolderId);
+            Photos = new();
+        }
+    }
+
+    private void StartTimer()
+    {
+        _timer?.Dispose();
+        var seconds = Settings.SecondsPerImage;
+        _timer = new System.Threading.Timer(OnTimerTick, null, TimeSpan.FromSeconds(seconds), TimeSpan.FromSeconds(seconds));
+    }
+
+    private void StopTimer()
+    {
+        _timer?.Dispose();
+        _timer = null;
+    }
+
+    private void RestartTimer()
+    {
+        if (IsPlaying)
+        {
+            StartTimer();
+        }
+    }
+
+    private async void OnTimerTick(object? state)
+    {
+        await InvokeAsync(async () =>
+        {
+            if (IsPlaying && Photos != null && Photos.Any())
+            {
+                await NextPhotoAsync();
+            }
+        });
+    }
+
+    private async Task NextPhotoAsync()
+    {
+        if (Photos == null || !Photos.Any()) return;
+
+        if (CurrentIndex < Photos.Count - 1)
+        {
+            CurrentIndex++;
+        }
+        else if (Settings.Loop)
+        {
+            CurrentIndex = 0;
+        }
+        else
+        {
+            IsPlaying = false;
+            StopTimer();
+        }
+
+        RestartTimer();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PrevPhotoAsync()
+    {
+        if (Photos == null || !Photos.Any()) return;
+
+        if (CurrentIndex > 0)
+        {
+            CurrentIndex--;
+        }
+        else if (Settings.Loop)
+        {
+            CurrentIndex = Photos.Count - 1;
+        }
+
+        RestartTimer();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void TogglePlay()
+    {
+        IsPlaying = !IsPlaying;
+        if (IsPlaying)
+        {
+            StartTimer();
+        }
+        else
+        {
+            StopTimer();
+        }
+        StateHasChanged();
+    }
+
+    private void ToggleSettings()
+    {
+        ShowSettings = !ShowSettings;
+    }
+
+    private async Task OnSecondsChanged(ChangeEventArgs e)
+    {
+        if (int.TryParse(e.Value?.ToString(), out var seconds))
+        {
+            Settings.SecondsPerImage = seconds;
+            await SaveSettingsAsync();
+            RestartTimer();
+        }
+    }
+
+    private async Task OnTransitionChanged(ChangeEventArgs e)
+    {
+        Settings.Transition = e.Value?.ToString() ?? "Fade";
+        await SaveSettingsAsync();
+    }
+
+    private async Task OnLoopChanged(ChangeEventArgs e)
+    {
+        if (bool.TryParse(e.Value?.ToString(), out var loop))
+        {
+            Settings.Loop = loop;
+            await SaveSettingsAsync();
+        }
+    }
+
+    private async Task SaveSettingsAsync()
+    {
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("saveSettings", Settings);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Error saving slideshow settings to localStorage");
+            }
+        }
+    }
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == " ")
+        {
+            TogglePlay();
+        }
+        else if (e.Key == "ArrowLeft")
+        {
+            await PrevPhotoAsync();
+        }
+        else if (e.Key == "ArrowRight")
+        {
+            await NextPhotoAsync();
+        }
+        else if (e.Key == "Escape")
+        {
+            await CloseOverlayAsync();
+        }
+    }
+
+    private async Task CloseOverlayAsync()
+    {
+        StopTimer();
+        if (OnClose.HasDelegate)
+        {
+            await OnClose.InvokeAsync();
+        }
+    }
+
+    public void Dispose()
+    {
+        StopTimer();
+    }
+}
