@@ -156,6 +156,7 @@ builder.Services.AddSingleton<IAppVersionService, AppVersionService>();
 builder.Services.AddSingleton<IPathService, PathService>();
 builder.Services.AddSingleton<IScanProgressService, ScanProgressService>();
 builder.Services.AddSingleton<IRateLimitService, RateLimitService>();
+builder.Services.AddSingleton<IHomePageCache, HomePageCache>();
 builder.Services.AddScoped<IFolderService, FolderService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 builder.Services.AddScoped<IThumbnailService, ThumbnailService>();
