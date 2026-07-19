@@ -111,7 +111,12 @@
                                         {
                                             @if (user.IsAdmin)
                                             {
-                                                <button class="btn btn-outline-warning btn-sm" @onclick="() => StartRemoveAdmin(user)" disabled="@isBusy">Remove admin</button>
+                                                <button class="btn btn-outline-warning btn-sm"
+                                                        @onclick="() => StartRemoveAdmin(user)"
+                                                        disabled="@(isBusy || isSelf)"
+                                                        title="@(isSelf ? "You cannot remove your own admin role" : null)">
+                                                    Remove admin
+                                                </button>
                                             }
                                             else
                                             {
