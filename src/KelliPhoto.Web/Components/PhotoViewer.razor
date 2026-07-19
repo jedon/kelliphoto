@@ -1,8 +1,20 @@
 @using KelliPhoto.Web.Data.Models
+@using KelliPhoto.Web.Services
+@using Microsoft.AspNetCore.Components.Authorization
 @inject IPhotoService PhotoService
 @inject NavigationManager Navigation
+@inject AuthenticationStateProvider AuthStateProvider
 
-@if (Photo != null)
+@if (_notFound)
+{
+    <div class="text-center text-muted py-5">
+        <p>Photo not found.</p>
+        <button class="btn btn-secondary" @onclick="GoToGallery">
+            <i class="bi bi-arrow-left"></i> Back to Gallery
+        </button>
+    </div>
+}
+else if (Photo != null)
 {
     <div class="photo-viewer">
         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -47,6 +59,7 @@ else
     [Parameter] public int PhotoId { get; set; }
 
     private Photo? Photo { get; set; }
+    private bool _notFound;
 
     protected override async Task OnInitializedAsync()
     {
@@ -60,7 +73,20 @@ else
 
     private async Task LoadPhotoAsync()
     {
+        _notFound = false;
+        Photo = null;
+
+        var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+        var isAdmin = authState.User.IsInRole(RoleNames.Admin);
+
+        if (!isAdmin && !await PhotoService.CanPublicViewPhotoAsync(PhotoId))
+        {
+            _notFound = true;
+            return;
+        }
+
         Photo = await PhotoService.GetPhotoByIdAsync(PhotoId);
+        _notFound = Photo == null;
     }
 
     private void GoBack()
@@ -73,5 +99,10 @@ else
         {
             Navigation.NavigateTo("/gallery");
         }
+    }
+
+    private void GoToGallery()
+    {
+        Navigation.NavigateTo("/gallery");
     }
 }

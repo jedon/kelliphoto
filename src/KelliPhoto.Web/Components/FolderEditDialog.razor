@@ -1,5 +1,6 @@
 @using KelliPhoto.Web.Data.Models
 @using Microsoft.AspNetCore.Components.Forms
+@using SixLabors.ImageSharp
 @inject IFolderService FolderService
 @inject IPhotoService PhotoService
 @inject IPathService PathService
@@ -175,6 +176,9 @@
     private List<int> _selectedCoverIds = new();
     private CoverSource _coverSource = CoverSource.Folder;
     private IBrowserFile? _pendingUpload;
+    private bool _coversCleared;
+
+    private const long MaxCoverUploadBytes = 15 * 1024 * 1024;
 
     private bool _isLoadingPhotos;
     private bool _isSaving;
@@ -203,6 +207,7 @@
         _errorMessage = null;
         _coverMessage = null;
         _pendingUpload = null;
+        _coversCleared = false;
         _isSaving = false;
 
         try
@@ -263,6 +268,7 @@
 
     private void ToggleCover(int photoId)
     {
+        _coversCleared = false;
         if (_selectedCoverIds.Contains(photoId))
         {
             _selectedCoverIds.Remove(photoId);
@@ -280,6 +286,7 @@
         _pendingUpload = e.File;
         _coverSource = CoverSource.Upload;
         _coverMessage = null;
+        _coversCleared = false;
     }
 
     private async Task SaveAsync()
@@ -307,13 +314,13 @@
                 await UploadCoverAsync(_pendingUpload);
             }
 
-            if (_selectedCoverIds.Count > 0)
-            {
-                await FolderService.SetFolderCoverPhotosAsync(FolderId.Value, _selectedCoverIds);
-            }
-            else if (_savedCovers.Count > 0)
+            if (_coversCleared || (_selectedCoverIds.Count == 0 && _savedCovers.Count > 0))
             {
                 await FolderService.ClearFolderCoverPhotosAsync(FolderId.Value);
+            }
+            else if (CoversSelectionChanged())
+            {
+                await FolderService.SetFolderCoverPhotosAsync(FolderId.Value, _selectedCoverIds);
             }
 
             await OnSaved.InvokeAsync();
@@ -330,6 +337,25 @@
         }
     }
 
+    private bool CoversSelectionChanged()
+    {
+        if (_selectedCoverIds.Count != _savedCovers.Count)
+        {
+            return true;
+        }
+
+        var savedIds = _savedCovers.Select(p => p.Id).ToList();
+        for (var i = 0; i < _selectedCoverIds.Count; i++)
+        {
+            if (_selectedCoverIds[i] != savedIds[i])
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private async Task UploadCoverAsync(IBrowserFile file)
     {
         var folder = await FolderService.GetFolderByIdAsync(FolderId!.Value)
@@ -338,43 +364,65 @@
         var folderPath = PathService.GetFullPath(folder.Path);
         Directory.CreateDirectory(folderPath);
 
-        var safeName = Path.GetFileName(file.Name);
+        await using var stream = file.OpenReadStream(maxAllowedSize: MaxCoverUploadBytes);
+        using var buffer = new MemoryStream();
+        await stream.CopyToAsync(buffer);
+        buffer.Position = 0;
+
+        ImageInfo? imageInfo;
+        try
+        {
+            imageInfo = Image.Identify(buffer);
+        }
+        catch (UnknownImageFormatException)
+        {
+            throw new InvalidOperationException("The selected file is not a valid image.");
+        }
+
+        if (imageInfo is null)
+        {
+            throw new InvalidOperationException("The selected file is not a valid image.");
+        }
+
+        var extension = Path.GetExtension(file.Name);
+        if (string.IsNullOrEmpty(extension)
+            && imageInfo.Metadata.DecodedImageFormat?.FileExtensions.FirstOrDefault() is { } formatExt)
+        {
+            extension = "." + formatExt;
+        }
+
+        if (string.IsNullOrEmpty(extension))
+        {
+            extension = ".jpg";
+        }
+
+        var safeName = Guid.NewGuid().ToString("N") + extension.ToLowerInvariant();
         var filePath = Path.Combine(folderPath, safeName);
-        await using (var stream = file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024))
+        buffer.Position = 0;
         await using (var fileStream = new FileStream(filePath, FileMode.Create))
         {
-            await stream.CopyToAsync(fileStream);
+            await buffer.CopyToAsync(fileStream);
         }
 
         var photo = await PhotoService.CreateOrUpdatePhotoAsync(filePath, FolderId!.Value, safeName);
         _selectedCoverIds = _hasChildAlbums
             ? new List<int> { photo.Id }.Concat(_selectedCoverIds).Take(_maxCovers).ToList()
             : new List<int> { photo.Id };
+        _coversCleared = false;
     }
 
-    private async Task ClearCovers()
+    private void ClearCovers()
     {
         if (!FolderId.HasValue)
         {
             return;
         }
 
-        _isSaving = true;
-        try
-        {
-            await FolderService.ClearFolderCoverPhotosAsync(FolderId.Value);
-            _selectedCoverIds.Clear();
-            _savedCovers.Clear();
-            _coverMessage = "Automatic thumbnails will be used.";
-        }
-        catch (Exception ex)
-        {
-            _coverMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            _isSaving = false;
-        }
+        _selectedCoverIds.Clear();
+        _savedCovers.Clear();
+        _pendingUpload = null;
+        _coversCleared = true;
+        _coverMessage = "Automatic thumbnails will be used when you save.";
     }
 
     private async Task Close()

@@ -7,7 +7,7 @@ public interface IUserManagementService
     Task<IReadOnlyList<UserSummaryDto>> ListUsersAsync();
     Task<IdentityResult> CreateUserAsync(string email, string password, bool isAdmin);
     Task<IdentityResult> SetAdminRoleAsync(string userId, bool isAdmin, string? currentUserId = null);
-    Task<IdentityResult> SetLockoutAsync(string userId, bool locked);
+    Task<IdentityResult> SetLockoutAsync(string userId, bool locked, string? currentUserId = null);
     Task<IdentityResult> DeleteUserAsync(string userId, string? currentUserId = null);
 }
 

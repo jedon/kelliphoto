@@ -192,3 +192,13 @@ appsettings.Production.json
 .web/
 purpleiris.png
 purpledamask.png
+
+# Local one-off DB maintenance (may contain credentials — never commit)
+CheckFolders/
+DeleteDuplicates/
+FixDatabase/
+fix-thumbnail-migration.cs
+fix-thumbnail-migration.csproj
+apply-missing-migration.sql
+complete-migration.sql
+src/KelliPhoto.Web/migration.sql

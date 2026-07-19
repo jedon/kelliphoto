@@ -9,10 +9,12 @@ namespace KelliPhoto.Web.Controllers;
 public class ContactController : ControllerBase
 {
     private readonly IContactFormService _contactFormService;
+    private readonly IConfiguration _configuration;
 
-    public ContactController(IContactFormService contactFormService)
+    public ContactController(IContactFormService contactFormService, IConfiguration configuration)
     {
         _contactFormService = contactFormService;
+        _configuration = configuration;
     }
 
     [HttpPost]
@@ -40,19 +42,33 @@ public class ContactController : ControllerBase
 
     private string GetClientIpAddress()
     {
-        var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(forwardedFor))
+        var remoteIp = HttpContext.Connection.RemoteIpAddress;
+        // Prefer direct remote IP; trust X-Forwarded-* only when ForwardedHeaders:Enabled or behind local proxy.
+        if (remoteIp is not null && !System.Net.IPAddress.IsLoopback(remoteIp))
         {
-            var ips = forwardedFor.Split(',');
-            return ips[0].Trim();
+            return remoteIp.ToString();
         }
 
-        var realIp = Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(realIp))
+        if (ShouldTrustProxyHeaders())
         {
-            return realIp;
+            var forwardedFor = Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(forwardedFor))
+            {
+                return forwardedFor.Split(',')[0].Trim();
+            }
+
+            var realIp = Request.Headers["X-Real-IP"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(realIp))
+            {
+                return realIp;
+            }
         }
 
-        return HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return remoteIp?.ToString() ?? "unknown";
     }
+
+    private bool ShouldTrustProxyHeaders() =>
+        _configuration.GetValue<bool>("ForwardedHeaders:Enabled")
+        || HttpContext.Connection.RemoteIpAddress is null
+        || System.Net.IPAddress.IsLoopback(HttpContext.Connection.RemoteIpAddress);
 }

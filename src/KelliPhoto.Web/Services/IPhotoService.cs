@@ -6,6 +6,8 @@ public interface IPhotoService
 {
     Task<List<Photo>> GetPhotosByFolderIdAsync(int folderId, int skip = 0, int take = 50, bool includeHidden = false);
     Task<Photo?> GetPhotoByIdAsync(int id);
+    Task<bool> CanPublicViewPhotoAsync(int photoId);
+    Task<bool> CanPublicViewFolderAsync(int folderId);
     Task<int> GetPhotoCountByFolderIdAsync(int folderId, bool includeHidden = false);
     Task<Photo> CreateOrUpdatePhotoAsync(string filePath, int folderId, string filename);
     Task<List<Photo>> ScanPhotosInFolderAsync(int folderId, string folderPath, IScanProgressService? progressService = null);

@@ -8,6 +8,10 @@ namespace KelliPhoto.Web.Services;
 
 public sealed class WebImageService : IWebImageService
 {
+    private const int MaxDimensionMin = 400;
+    private const int MaxDimensionMax = 2400;
+    private const int MaxDimensionDefault = 2000;
+
     private sealed record WatermarkSettings(
         bool Enabled,
         string? ImagePath,
@@ -53,8 +57,10 @@ public sealed class WebImageService : IWebImageService
     {
         if (maxDimension <= 0)
         {
-            maxDimension = 2000;
+            maxDimension = MaxDimensionDefault;
         }
+
+        maxDimension = Math.Clamp(maxDimension, MaxDimensionMin, MaxDimensionMax);
 
         var webBasePath = GetWebImageBasePath();
         Directory.CreateDirectory(webBasePath);

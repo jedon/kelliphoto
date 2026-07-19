@@ -388,27 +388,28 @@
             var folder = await FolderService.GetFolderByIdAsync(folderId);
             if (folder != null)
             {
-                // Quick check if folder needs scanning
-                var needsScan = await PhotoService.NeedsFolderScanAsync(folderId, folder.Path);
-                if (needsScan)
+                // Public browse must not trigger disk/DB scan work; catalog/admin jobs own scanning.
+                if (IsAdmin)
                 {
-                    Logger.LogInformation("Folder {FolderId} needs scanning, starting scan...", folderId);
-                    
-                    // Scan the folder in background with progress tracking
-                    // Use batched method with batch size of 400 for optimal performance
-                    _ = Task.Run(async () =>
+                    var needsScan = await PhotoService.NeedsFolderScanAsync(folderId, folder.Path);
+                    if (needsScan)
                     {
-                        try
+                        Logger.LogInformation("Folder {FolderId} needs scanning, starting scan...", folderId);
+
+                        _ = Task.Run(async () =>
                         {
-                            await PhotoService.ScanPhotosInFolderBatchedAsync(folderId, folder.Path, ProgressService, batchSize: 400);
-                            Logger.LogInformation("Completed scan for folder {FolderId}", folderId);
-                        }
-                        catch (Exception ex)
-                        {
-                            Logger.LogError(ex, "Error scanning folder {FolderId}", folderId);
-                            ProgressService.CompleteScan(folderId); // Mark as complete even on error
-                        }
-                    });
+                            try
+                            {
+                                await PhotoService.ScanPhotosInFolderBatchedAsync(folderId, folder.Path, ProgressService, batchSize: 400);
+                                Logger.LogInformation("Completed scan for folder {FolderId}", folderId);
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogError(ex, "Error scanning folder {FolderId}", folderId);
+                                ProgressService.CompleteScan(folderId);
+                            }
+                        });
+                    }
                 }
             }
         }
@@ -444,6 +445,11 @@
     {
         FolderThumbnails.Clear();
         await PopulateFolderThumbnailsAsync(folders);
+
+        if (!IsAdmin)
+        {
+            return;
+        }
 
         var foldersToScan = new List<Folder>();
         foreach (var folder in folders)

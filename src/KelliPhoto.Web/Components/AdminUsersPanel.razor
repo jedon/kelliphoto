@@ -111,7 +111,12 @@
                                         {
                                             @if (user.IsAdmin)
                                             {
-                                                <button class="btn btn-outline-warning btn-sm" @onclick="() => StartRemoveAdmin(user)" disabled="@isBusy">Remove admin</button>
+                                                <button class="btn btn-outline-warning btn-sm"
+                                                        @onclick="() => StartRemoveAdmin(user)"
+                                                        disabled="@(isBusy || isSelf)"
+                                                        title="@(isSelf ? "You cannot remove your own admin role" : null)">
+                                                    Remove admin
+                                                </button>
                                             }
                                             else
                                             {
@@ -123,7 +128,12 @@
                                             }
                                             else
                                             {
-                                                <button class="btn btn-outline-secondary btn-sm ms-1" @onclick="() => SetLockoutAsync(user.Id, locked: true)" disabled="@isBusy">Lock</button>
+                                                <button class="btn btn-outline-secondary btn-sm ms-1"
+                                                        @onclick="() => SetLockoutAsync(user.Id, locked: true)"
+                                                        disabled="@(isBusy || isSelf)"
+                                                        title="@(isSelf ? "You cannot lock your own account" : null)">
+                                                    Lock
+                                                </button>
                                             }
                                             <button class="btn btn-outline-danger btn-sm ms-1"
                                                     @onclick="() => StartDelete(user.Id)"
@@ -294,7 +304,7 @@
         ClearAlert();
         try
         {
-            var result = await UserManagement.SetLockoutAsync(userId, locked);
+            var result = await UserManagement.SetLockoutAsync(userId, locked, currentUserId);
             if (result.Succeeded)
             {
                 ShowAlert(locked ? "User locked." : "User unlocked.", error: false);

@@ -117,12 +117,103 @@ public class ImageEndpointIntegrationTests : IClassFixture<KelliPhotoWebApplicat
         var folder = await CreateTestFolderAsync("TestFolder");
         var photo = await CreateTestPhotoAsync(folder.Id, "test.jpg");
 
-        // Act
-        var response = await _client.GetAsync($"/api/images/web/{photo.Id}?max=2000&watermark=false");
+        // Act — default watermark applies for anonymous callers
+        var response = await _client.GetAsync($"/api/images/web/{photo.Id}?max=2000");
 
         // Assert
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task GetThumbnail_Returns404_WhenPhotoIsHidden()
+    {
+        var folder = await CreateTestFolderAsync("TestFolder");
+        var photo = await CreateTestPhotoAsync(folder.Id, "hidden.jpg", isVisible: false);
+
+        var response = await _client.GetAsync($"/api/images/thumbnail/{photo.Id}?size=300");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetWebPhoto_Returns404_WhenPhotoIsHidden()
+    {
+        var folder = await CreateTestFolderAsync("TestFolder");
+        var photo = await CreateTestPhotoAsync(folder.Id, "hidden.jpg", isVisible: false);
+
+        var response = await _client.GetAsync($"/api/images/web/{photo.Id}?max=2000");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetThumbnail_Returns404_WhenFolderIsHidden()
+    {
+        var folder = await CreateTestFolderAsync("HiddenFolder", isVisible: false);
+        var photo = await CreateTestPhotoAsync(folder.Id, "test.jpg");
+
+        var response = await _client.GetAsync($"/api/images/thumbnail/{photo.Id}?size=300");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetWebPhoto_Returns404_WhenFolderIsHidden()
+    {
+        var folder = await CreateTestFolderAsync("HiddenFolder", isVisible: false);
+        var photo = await CreateTestPhotoAsync(folder.Id, "test.jpg");
+
+        var response = await _client.GetAsync($"/api/images/web/{photo.Id}?max=2000");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetWebPhoto_Returns200_WhenAnonymousRequestsWatermarkFalse()
+    {
+        var folder = await CreateTestFolderAsync("TestFolder");
+        var photo = await CreateTestPhotoAsync(folder.Id, "test.jpg");
+
+        var response = await _client.GetAsync($"/api/images/web/{photo.Id}?max=2000&watermark=false");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task GetThumbnail_Returns200_WhenSizeIsAbsurdlyLarge()
+    {
+        var folder = await CreateTestFolderAsync("TestFolder");
+        var photo = await CreateTestPhotoAsync(folder.Id, "test.jpg");
+
+        var response = await _client.GetAsync($"/api/images/thumbnail/{photo.Id}?size=50000");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task GetWebPhoto_Returns200_WhenMaxIsAbsurdlyLarge()
+    {
+        var folder = await CreateTestFolderAsync("TestFolder");
+        var photo = await CreateTestPhotoAsync(folder.Id, "test.jpg");
+
+        var response = await _client.GetAsync($"/api/images/web/{photo.Id}?max=50000");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("image/jpeg", response.Content.Headers.ContentType?.MediaType);
+    }
+
+    [Fact]
+    public async Task GetWebPhoto_Returns200_ForHomePageHighlightsFolderEvenWhenHidden()
+    {
+        var folder = await CreateTestFolderAsync("Home Page Highlights", isVisible: false);
+        var photo = await CreateTestPhotoAsync(folder.Id, "highlight.jpg");
+
+        var response = await _client.GetAsync($"/api/images/web/{photo.Id}?max=2000");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
     }
 
     [Fact]
@@ -189,14 +280,15 @@ public class ImageEndpointIntegrationTests : IClassFixture<KelliPhotoWebApplicat
                    response.StatusCode == HttpStatusCode.Redirect);
     }
 
-    private async Task<Folder> CreateTestFolderAsync(string name)
+    private async Task<Folder> CreateTestFolderAsync(string name, bool isVisible = true, int? parentId = null)
     {
         await using var context = await _dbFactory.CreateDbContextAsync();
         var folder = new Folder
         {
             Name = name,
             Path = name,
-            IsVisible = true,
+            ParentId = parentId,
+            IsVisible = isVisible,
             CreatedAt = DateTime.UtcNow
         };
         context.Folders.Add(folder);
@@ -204,7 +296,7 @@ public class ImageEndpointIntegrationTests : IClassFixture<KelliPhotoWebApplicat
         return folder;
     }
 
-    private async Task<Photo> CreateTestPhotoAsync(int folderId, string filename)
+    private async Task<Photo> CreateTestPhotoAsync(int folderId, string filename, bool isVisible = true)
     {
         // Create actual image file
         var imagePath = Path.Combine(_testGalleryPath, filename);
@@ -219,7 +311,7 @@ public class ImageEndpointIntegrationTests : IClassFixture<KelliPhotoWebApplicat
             FileSize = 1024,
             Width = 800,
             Height = 600,
-            IsVisible = true,
+            IsVisible = isVisible,
             CreatedAt = DateTime.UtcNow
         };
         context.Photos.Add(photo);

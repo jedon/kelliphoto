@@ -89,12 +89,10 @@ PGPASSWORD='!kelliphoto13!' psql -h 142.4.216.160 -p 15432 -U kelli_photo_app -d
 - Login: https://kelli.photo/Identity/Account/Login
 - Admin: https://kelli.photo/admin
 
-## Default Admin Account
+## Admin Account
 
-- Email: `admin@kelliphoto.com`
-- Password: `Admin123!`
-
-(Change in `appsettings.json` under `Admin:Email` and `Admin:Password`)
+- Email defaults to `admin@kelliphoto.com` (override with `Admin__Email`)
+- Password must be set via `Admin__Password` in `.env` (or env / secrets). There is no committed default password; seeding skips if unset outside Testing.
 
 ## Identity / users
 

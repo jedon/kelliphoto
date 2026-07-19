@@ -97,6 +97,65 @@ public class PhotoService : IPhotoService
             .FirstOrDefaultAsync(p => p.Id == id);
     }
 
+    public async Task<bool> CanPublicViewPhotoAsync(int photoId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+
+        var photo = await context.Photos
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == photoId);
+
+        if (photo == null || !photo.IsVisible)
+        {
+            return false;
+        }
+
+        return await CanPublicViewFolderInternalAsync(context, photo.FolderId);
+    }
+
+    /// <summary>
+    /// Whether a non-admin may browse a folder (list photos). Home Page Highlights is
+    /// intentionally hidden from the album tree but is the public homepage gallery.
+    /// </summary>
+    public async Task<bool> CanPublicViewFolderAsync(int folderId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        return await CanPublicViewFolderInternalAsync(context, folderId);
+    }
+
+    private static async Task<bool> CanPublicViewFolderInternalAsync(ApplicationDbContext context, int folderId)
+    {
+        while (true)
+        {
+            var folder = await context.Folders
+                .AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == folderId);
+
+            if (folder == null)
+            {
+                return false;
+            }
+
+            // Homepage gallery lives in a system folder that stays hidden from the tree.
+            if (string.Equals(folder.Name, "Home Page Highlights", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!folder.IsVisible)
+            {
+                return false;
+            }
+
+            if (folder.ParentId == null)
+            {
+                return true;
+            }
+
+            folderId = folder.ParentId.Value;
+        }
+    }
+
     public async Task<int> GetPhotoCountByFolderIdAsync(int folderId, bool includeHidden = false)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
