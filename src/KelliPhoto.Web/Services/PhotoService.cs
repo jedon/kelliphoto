@@ -11,16 +11,19 @@ public class PhotoService : IPhotoService
     private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IPathService _pathService;
     private readonly ILogger<PhotoService> _logger;
+    private readonly IHomePageCache? _homePageCache;
     private static readonly string[] SupportedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif" };
 
     public PhotoService(
         IDbContextFactory<ApplicationDbContext> contextFactory,
         IPathService pathService,
-        ILogger<PhotoService> logger)
+        ILogger<PhotoService> logger,
+        IHomePageCache? homePageCache = null)
     {
         _contextFactory = contextFactory;
         _pathService = pathService;
         _logger = logger;
+        _homePageCache = homePageCache;
     }
 
     public async Task<List<Photo>> GetPhotosByFolderIdAsync(int folderId, int skip = 0, int take = 50, bool includeHidden = false)
@@ -309,6 +312,21 @@ public class PhotoService : IPhotoService
                 }
             }
             
+            // Check if folder is "Home Page Highlights" to invalidate cache
+            try
+            {
+                await using var checkContext = await _contextFactory.CreateDbContextAsync();
+                var folder = await checkContext.Folders.AsNoTracking().FirstOrDefaultAsync(f => f.Id == folderId);
+                if (folder != null && string.Equals(folder.Name, "Home Page Highlights", StringComparison.OrdinalIgnoreCase))
+                {
+                    _homePageCache?.Invalidate();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking folder name for cache invalidation in ScanPhotosInFolderAsync");
+            }
+            
             // Mark scan as complete
             progressService?.CompleteScan(folderId);
             
@@ -522,6 +540,21 @@ public class PhotoService : IPhotoService
             
             processStopwatch.Stop();
             
+            // Check if folder is "Home Page Highlights" to invalidate cache
+            try
+            {
+                await using var checkContext = await _contextFactory.CreateDbContextAsync();
+                var folder = await checkContext.Folders.AsNoTracking().FirstOrDefaultAsync(f => f.Id == folderId);
+                if (folder != null && string.Equals(folder.Name, "Home Page Highlights", StringComparison.OrdinalIgnoreCase))
+                {
+                    _homePageCache?.Invalidate();
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error checking folder name for cache invalidation in ScanPhotosInFolderBatchedAsync");
+            }
+            
             // Mark scan as complete
             progressService?.CompleteScan(folderId);
             
@@ -623,6 +656,20 @@ public class PhotoService : IPhotoService
         }
         photo.IsVisible = isVisible;
         await context.SaveChangesAsync();
+
+        try
+        {
+            var folder = await context.Folders.AsNoTracking().FirstOrDefaultAsync(f => f.Id == photo.FolderId);
+            if (folder != null && string.Equals(folder.Name, "Home Page Highlights", StringComparison.OrdinalIgnoreCase))
+            {
+                _homePageCache?.Invalidate();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error checking folder name for cache invalidation in UpdatePhotoVisibilityAsync. Falling back to unconditional invalidation.");
+            _homePageCache?.Invalidate();
+        }
     }
 
     public async Task UpdatePhotoDisplayNameAsync(int photoId, string? displayName)

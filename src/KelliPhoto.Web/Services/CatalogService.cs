@@ -9,17 +9,20 @@ public class CatalogService : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly IConfiguration _configuration;
     private readonly ILogger<CatalogService> _logger;
+    private readonly IHomePageCache? _homePageCache;
     private readonly SemaphoreSlim _scanLock = new(1, 1);
     private bool _startupScanCompleted = false;
 
     public CatalogService(
         IServiceProvider serviceProvider,
         IConfiguration configuration,
-        ILogger<CatalogService> logger)
+        ILogger<CatalogService> logger,
+        IHomePageCache? homePageCache = null)
     {
         _serviceProvider = serviceProvider;
         _configuration = configuration;
         _logger = logger;
+        _homePageCache = homePageCache;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -147,6 +150,7 @@ public class CatalogService : BackgroundService
                 var photos = await photoService.ScanPhotosInFolderBatchedAsync(homePageFolder.Id, homePageFolder.Path, progressService, batchSize: 400);
                 totalPhotos = photos.Count;
                 _logger.LogInformation("Scanned {PhotoCount} photos in Home Page Highlights folder", photos.Count);
+                _homePageCache?.Invalidate();
             }
             catch (Exception ex)
             {
@@ -173,6 +177,7 @@ public class CatalogService : BackgroundService
         try
         {
             await PerformCatalogScanAsync(cancellationToken);
+            _homePageCache?.Invalidate();
         }
         finally
         {
