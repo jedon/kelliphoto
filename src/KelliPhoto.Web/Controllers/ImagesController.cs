@@ -9,6 +9,13 @@ namespace KelliPhoto.Web.Controllers;
 [Route("api/[controller]")]
 public class ImagesController : ControllerBase
 {
+    private const int ThumbnailSizeMin = 50;
+    private const int ThumbnailSizeMax = 800;
+    private const int ThumbnailSizeDefault = 300;
+    private const int WebMaxMin = 400;
+    private const int WebMaxMax = 2400;
+    private const int WebMaxDefault = 2000;
+
     private readonly IPhotoService _photoService;
     private readonly IThumbnailService _thumbnailService;
     private readonly IWebImageService _webImageService;
@@ -35,6 +42,13 @@ public class ImagesController : ControllerBase
     [HttpGet("thumbnail/{photoId}")]
     public async Task<IActionResult> GetThumbnail(int photoId, [FromQuery] int size = 300)
     {
+        size = ClampThumbnailSize(size);
+
+        if (!IsAdminUser() && !await _photoService.CanPublicViewPhotoAsync(photoId))
+        {
+            return NotFound();
+        }
+
         try
         {
             var stream = await _thumbnailService.GetThumbnailStreamAsync(photoId, size);
@@ -105,6 +119,18 @@ public class ImagesController : ControllerBase
         [FromQuery] bool watermark = true,
         CancellationToken cancellationToken = default)
     {
+        max = ClampWebMax(max);
+
+        if (!IsAdminUser() && !await _photoService.CanPublicViewPhotoAsync(photoId))
+        {
+            return NotFound();
+        }
+
+        if (!IsAdminUser())
+        {
+            watermark = true;
+        }
+
         try
         {
             var stream = await _webImageService.GetWebImageStreamAsync(photoId, max, watermark, cancellationToken);
@@ -267,6 +293,15 @@ public class ImagesController : ControllerBase
 
         return null;
     }
+
+    private bool IsAdminUser() =>
+        User.Identity?.IsAuthenticated == true && User.IsInRole(RoleNames.Admin);
+
+    private static int ClampThumbnailSize(int size) =>
+        Math.Clamp(size <= 0 ? ThumbnailSizeDefault : size, ThumbnailSizeMin, ThumbnailSizeMax);
+
+    private static int ClampWebMax(int max) =>
+        Math.Clamp(max <= 0 ? WebMaxDefault : max, WebMaxMin, WebMaxMax);
 
     private static string GetContentType(string filePath)
     {

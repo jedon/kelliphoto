@@ -8,6 +8,10 @@ namespace KelliPhoto.Web.Services;
 
 public class ThumbnailService : IThumbnailService
 {
+    private const int SizeMin = 50;
+    private const int SizeMax = 800;
+    private const int SizeDefault = 300;
+
     private readonly IDbContextFactory<ApplicationDbContext> _contextFactory;
     private readonly IPhotoService _photoService;
     private readonly IPathService _pathService;
@@ -30,6 +34,7 @@ public class ThumbnailService : IThumbnailService
 
     public async Task<string> GetOrCreateThumbnailAsync(int photoId, int size = 300)
     {
+        size = ClampSize(size);
         var photo = await _photoService.GetPhotoByIdAsync(photoId);
         if (photo == null)
         {
@@ -64,6 +69,7 @@ public class ThumbnailService : IThumbnailService
 
     public async Task<Stream> GetThumbnailStreamAsync(int photoId, int size = 300)
     {
+        size = ClampSize(size);
         var thumbnailPath = await GetOrCreateThumbnailAsync(photoId, size);
         
         // thumbnailPath is already a full path from GetOrCreateThumbnailAsync
@@ -221,6 +227,9 @@ public class ThumbnailService : IThumbnailService
             throw;
         }
     }
+
+    private static int ClampSize(int size) =>
+        Math.Clamp(size <= 0 ? SizeDefault : size, SizeMin, SizeMax);
 
     private static (int width, int height) CalculateThumbnailDimensions(int originalWidth, int originalHeight, int maxSize)
     {

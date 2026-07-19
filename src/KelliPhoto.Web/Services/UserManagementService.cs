@@ -71,6 +71,16 @@ public class UserManagementService : IUserManagementService
         if (user is null)
             return IdentityResult.Failed(new IdentityError { Description = "User not found." });
 
+        if (!isAdmin
+            && !string.IsNullOrEmpty(currentUserId)
+            && string.Equals(userId, currentUserId, StringComparison.Ordinal))
+        {
+            return IdentityResult.Failed(new IdentityError
+            {
+                Description = "You cannot remove your own administrator role."
+            });
+        }
+
         var isCurrentlyAdmin = await _userManager.IsInRoleAsync(user, RoleNames.Admin);
 
         if (!isAdmin && isCurrentlyAdmin)
@@ -94,11 +104,21 @@ public class UserManagementService : IUserManagementService
         return IdentityResult.Success;
     }
 
-    public async Task<IdentityResult> SetLockoutAsync(string userId, bool locked)
+    public async Task<IdentityResult> SetLockoutAsync(string userId, bool locked, string? currentUserId = null)
     {
         var user = await _userManager.FindByIdAsync(userId);
         if (user is null)
             return IdentityResult.Failed(new IdentityError { Description = "User not found." });
+
+        if (locked
+            && !string.IsNullOrEmpty(currentUserId)
+            && string.Equals(userId, currentUserId, StringComparison.Ordinal))
+        {
+            return IdentityResult.Failed(new IdentityError
+            {
+                Description = "You cannot lock your own account."
+            });
+        }
 
         if (locked)
         {
@@ -115,6 +135,15 @@ public class UserManagementService : IUserManagementService
         var user = await _userManager.FindByIdAsync(userId);
         if (user is null)
             return IdentityResult.Failed(new IdentityError { Description = "User not found." });
+
+        if (!string.IsNullOrEmpty(currentUserId)
+            && string.Equals(userId, currentUserId, StringComparison.Ordinal))
+        {
+            return IdentityResult.Failed(new IdentityError
+            {
+                Description = "You cannot delete your own account."
+            });
+        }
 
         if (await _userManager.IsInRoleAsync(user, RoleNames.Admin))
         {

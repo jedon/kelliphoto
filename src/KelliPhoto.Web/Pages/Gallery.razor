@@ -6,6 +6,7 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @inject ILogger<Gallery> Logger
 @inject IFolderService FolderService
+@inject IPhotoService PhotoService
 @inject AuthenticationStateProvider AuthStateProvider
 
 <PageTitle>Gallery - Kelli Thompson Photography</PageTitle>
@@ -56,6 +57,12 @@
 
         if (FolderId.HasValue)
         {
+            if (!isAdmin && !await PhotoService.CanPublicViewFolderAsync(FolderId.Value))
+            {
+                DisplayFolderId = null;
+                return;
+            }
+
             DisplayFolderId = FolderId;
         }
         else

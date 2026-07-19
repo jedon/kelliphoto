@@ -4,6 +4,7 @@
 @using KelliPhoto.Web.Data.Models
 @using KelliPhoto.Web.Services
 @using KelliPhoto.Web.Components
+@using SixLabors.ImageSharp
 @attribute [Authorize(Roles = "Admin")]
 @inject IFolderService FolderService
 @inject IPhotoService PhotoService
@@ -240,6 +241,8 @@
     private List<Photo> coverPhotos = new();
     private List<Photo> coverPickerPhotos = new();
     private List<int> selectedCoverPhotoIds = new();
+    private bool coversCleared;
+    private bool hadSavedCovers;
     private int photoSkip;
     private const int PhotoPageSize = 48;
     private int photoTotalCount;
@@ -263,6 +266,7 @@
         saveMessage = null;
         coverMessage = null;
         uploadMessage = null;
+        coversCleared = false;
         photoSkip = 0;
         folderPhotos.Clear();
         coverPickerPhotos.Clear();
@@ -286,6 +290,8 @@
             physicalPath = PathService.GetFullPath(selectedFolder.Path);
             coverPhotos = (await FolderService.GetFolderCoverPhotosAsync(folderId)).ToList();
             selectedCoverPhotoIds = coverPhotos.Select(p => p.Id).ToList();
+            hadSavedCovers = coverPhotos.Count > 0;
+            coversCleared = false;
             await LoadCoverPickerPhotosAsync();
             await LoadPhotosPageAsync(reset: true);
         }
@@ -384,6 +390,7 @@
 
     private void ToggleCoverSelection(int photoId)
     {
+        coversCleared = false;
         if (selectedCoverPhotoIds.Contains(photoId))
         {
             selectedCoverPhotoIds.Remove(photoId);
@@ -405,8 +412,19 @@
         coverMessage = null;
         try
         {
-            await FolderService.SetFolderCoverPhotosAsync(selectedFolder.Id, selectedCoverPhotoIds);
+            if (coversCleared || (selectedCoverPhotoIds.Count == 0 && hadSavedCovers))
+            {
+                await FolderService.ClearFolderCoverPhotosAsync(selectedFolder.Id);
+            }
+            else if (selectedCoverPhotoIds.Count > 0)
+            {
+                await FolderService.SetFolderCoverPhotosAsync(selectedFolder.Id, selectedCoverPhotoIds);
+            }
+
+            coversCleared = false;
             coverPhotos = (await FolderService.GetFolderCoverPhotosAsync(selectedFolder.Id)).ToList();
+            selectedCoverPhotoIds = coverPhotos.Select(p => p.Id).ToList();
+            hadSavedCovers = coverPhotos.Count > 0;
             await LoadCoverPickerPhotosAsync();
             coverMessage = "Cover images saved.";
         }
@@ -421,31 +439,17 @@
         }
     }
 
-    private async Task ClearCovers()
+    private void ClearCovers()
     {
         if (selectedFolder == null)
         {
             return;
         }
 
-        isSavingCovers = true;
-        coverMessage = null;
-        try
-        {
-            await FolderService.ClearFolderCoverPhotosAsync(selectedFolder.Id);
-            selectedCoverPhotoIds.Clear();
-            coverPhotos.Clear();
-            coverMessage = "Cover images cleared. Gallery will use automatic thumbnails.";
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error clearing folder covers");
-            coverMessage = $"Error: {ex.Message}";
-        }
-        finally
-        {
-            isSavingCovers = false;
-        }
+        coversCleared = true;
+        selectedCoverPhotoIds.Clear();
+        coverPhotos.Clear();
+        coverMessage = "Cover images will use automatic thumbnails when you save.";
     }
 
     private void HandleFileSelection(InputFileChangeEventArgs e) =>
@@ -478,15 +482,43 @@
 
             var successCount = 0;
             var errorCount = 0;
+            const long maxUploadBytes = 15 * 1024 * 1024;
             foreach (var file in selectedFiles)
             {
                 try
                 {
-                    var filePath = Path.Combine(folderPath, file.Name);
-                    await using var stream = file.OpenReadStream(maxAllowedSize: 100 * 1024 * 1024);
-                    await using var fileStream = new FileStream(filePath, FileMode.Create);
-                    await stream.CopyToAsync(fileStream);
-                    await PhotoService.CreateOrUpdatePhotoAsync(filePath, selectedFolderId, file.Name);
+                    await using var stream = file.OpenReadStream(maxAllowedSize: maxUploadBytes);
+                    using var buffer = new MemoryStream();
+                    await stream.CopyToAsync(buffer);
+                    buffer.Position = 0;
+
+                    ImageInfo? imageInfo;
+                    try
+                    {
+                        imageInfo = Image.Identify(buffer);
+                    }
+                    catch (UnknownImageFormatException)
+                    {
+                        errorCount++;
+                        continue;
+                    }
+
+                    if (imageInfo == null)
+                    {
+                        errorCount++;
+                        continue;
+                    }
+
+                    var ext = imageInfo.Metadata.DecodedImageFormat?.FileExtensions.FirstOrDefault() ?? "jpg";
+                    var safeName = $"{Guid.NewGuid():N}.{ext}";
+                    var filePath = Path.Combine(folderPath, safeName);
+                    buffer.Position = 0;
+                    await using (var fileStream = new FileStream(filePath, FileMode.CreateNew))
+                    {
+                        await buffer.CopyToAsync(fileStream);
+                    }
+
+                    await PhotoService.CreateOrUpdatePhotoAsync(filePath, selectedFolderId, safeName);
                     successCount++;
                 }
                 catch (Exception ex)

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using KelliPhoto.Web.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
@@ -74,12 +75,71 @@ public class UserManagementTests : IClassFixture<KelliPhotoWebApplicationFactory
         var svc = scope.ServiceProvider.GetRequiredService<IUserManagementService>();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
 
-        var admins = await userManager.GetUsersInRoleAsync(RoleNames.Admin);
-        var soleAdmin = Assert.Single(admins);
+        var seededAdmin = await userManager.FindByEmailAsync("admin@kelliphoto.com");
+        Assert.NotNull(seededAdmin);
 
-        var result = await svc.SetAdminRoleAsync(soleAdmin.Id, isAdmin: false);
+        var admins = await userManager.GetUsersInRoleAsync(RoleNames.Admin);
+        foreach (var extraAdmin in admins.Where(a => a.Id != seededAdmin.Id))
+        {
+            await userManager.RemoveFromRoleAsync(extraAdmin, RoleNames.Admin);
+        }
+
+        var result = await svc.SetAdminRoleAsync(seededAdmin.Id, isAdmin: false);
         Assert.False(result.Succeeded);
         Assert.Contains("last administrator", result.Errors.First().Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SetLockoutAsync_CannotLockSelf()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IUserManagementService>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+
+        var admin = await userManager.FindByEmailAsync("admin@kelliphoto.com");
+        Assert.NotNull(admin);
+
+        var result = await svc.SetLockoutAsync(admin.Id, locked: true, currentUserId: admin.Id);
+        Assert.False(result.Succeeded);
+        Assert.Contains("your own", result.Errors.First().Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task SetAdminRoleAsync_CannotDemoteSelf()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IUserManagementService>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+
+        var email = $"admin2-{Guid.NewGuid():N}@test.local";
+        var createResult = await svc.CreateUserAsync(email, "test123", isAdmin: true);
+        Assert.True(createResult.Succeeded);
+
+        var user = await userManager.FindByEmailAsync(email);
+        Assert.NotNull(user);
+
+        var result = await svc.SetAdminRoleAsync(user.Id, isAdmin: false, currentUserId: user.Id);
+        Assert.False(result.Succeeded);
+        Assert.Contains("your own", result.Errors.First().Description, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task DeleteUserAsync_CannotDeleteSelf()
+    {
+        using var scope = _factory.Services.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<IUserManagementService>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+
+        var email = $"delete-self-{Guid.NewGuid():N}@test.local";
+        var createResult = await svc.CreateUserAsync(email, "test123", isAdmin: false);
+        Assert.True(createResult.Succeeded);
+
+        var user = await userManager.FindByEmailAsync(email);
+        Assert.NotNull(user);
+
+        var result = await svc.DeleteUserAsync(user.Id, currentUserId: user.Id);
+        Assert.False(result.Succeeded);
+        Assert.Contains("your own", result.Errors.First().Description, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

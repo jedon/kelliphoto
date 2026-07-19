@@ -4,6 +4,7 @@
 @using System.ComponentModel.DataAnnotations
 @inject IContactFormService ContactFormService
 @inject IHttpContextAccessor HttpContextAccessor
+@inject IConfiguration Configuration
 @inject ILogger<Contact> Logger
 
 <PageTitle>Contact - Kelli Thompson Photography</PageTitle>
@@ -110,18 +111,33 @@
             return "unknown";
         }
 
-        var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(forwardedFor))
+        var remoteIp = httpContext.Connection.RemoteIpAddress;
+        // Prefer direct remote IP; trust X-Forwarded-* only when ForwardedHeaders:Enabled or behind local proxy.
+        if (remoteIp is not null && !System.Net.IPAddress.IsLoopback(remoteIp))
         {
-            return forwardedFor.Split(',')[0].Trim();
+            return remoteIp.ToString();
         }
 
-        var realIp = httpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(realIp))
+        if (ShouldTrustProxyHeaders(httpContext))
         {
-            return realIp;
+            var forwardedFor = httpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(forwardedFor))
+            {
+                return forwardedFor.Split(',')[0].Trim();
+            }
+
+            var realIp = httpContext.Request.Headers["X-Real-IP"].FirstOrDefault();
+            if (!string.IsNullOrWhiteSpace(realIp))
+            {
+                return realIp;
+            }
         }
 
-        return httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        return remoteIp?.ToString() ?? "unknown";
     }
+
+    private bool ShouldTrustProxyHeaders(HttpContext httpContext) =>
+        Configuration.GetValue<bool>("ForwardedHeaders:Enabled")
+        || httpContext.Connection.RemoteIpAddress is null
+        || System.Net.IPAddress.IsLoopback(httpContext.Connection.RemoteIpAddress);
 }

@@ -236,30 +236,54 @@ using (var scope = app.Services.CreateScope())
         await EnsureRoleExistsAsync(roleManager, RoleNames.Admin);
         await EnsureRoleExistsAsync(roleManager, RoleNames.User);
         
-        // Get admin email and password from configuration, or use defaults
         var adminEmail = builder.Configuration["Admin:Email"] ?? "admin@kelliphoto.com";
-        var adminPassword = builder.Configuration["Admin:Password"] ?? "Admin123!";
-        
+        var adminPassword = builder.Configuration["Admin:Password"];
+
+        if (string.IsNullOrWhiteSpace(adminPassword))
+        {
+            if (app.Environment.IsEnvironment("Testing"))
+            {
+                adminPassword = "TestAdmin123!";
+            }
+            else if (app.Environment.IsDevelopment())
+            {
+                Log.Warning(
+                    "Admin:Password is not configured. Skipping admin user creation. Set Admin__Password in .env.");
+            }
+            else
+            {
+                Log.Error(
+                    "Admin:Password is not configured. Skipping admin user creation to avoid a known default password.");
+            }
+        }
+
         // Check if admin user exists
         var adminUser = await userManager.FindByEmailAsync(adminEmail);
         if (adminUser == null)
         {
-            adminUser = new IdentityUser
+            if (string.IsNullOrWhiteSpace(adminPassword))
             {
-                UserName = adminEmail,
-                Email = adminEmail,
-                EmailConfirmed = true
-            };
-            
-            var result = await userManager.CreateAsync(adminUser, adminPassword);
-            if (result.Succeeded)
-            {
-                await userManager.AddToRoleAsync(adminUser, RoleNames.Admin);
-                Log.Information("Admin user created with email: {Email}", adminEmail);
+                // Already logged above; do not create admin without an explicit password.
             }
             else
             {
-                Log.Error("Failed to create admin user: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
+                adminUser = new IdentityUser
+                {
+                    UserName = adminEmail,
+                    Email = adminEmail,
+                    EmailConfirmed = true
+                };
+
+                var result = await userManager.CreateAsync(adminUser, adminPassword);
+                if (result.Succeeded)
+                {
+                    await userManager.AddToRoleAsync(adminUser, RoleNames.Admin);
+                    Log.Information("Admin user created with email: {Email}", adminEmail);
+                }
+                else
+                {
+                    Log.Error("Failed to create admin user: {Errors}", string.Join(", ", result.Errors.Select(e => e.Description)));
+                }
             }
         }
         else

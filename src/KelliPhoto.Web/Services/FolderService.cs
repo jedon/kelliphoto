@@ -247,18 +247,12 @@ public class FolderService : IFolderService
             folder.Name = name;
             folder.ParentId = parentId;
             // Ensure .thumbnails, Home Page Highlights, and any folder starting with . remain hidden
-            // But ensure other folders are visible (in case they were hidden before)
             var nameLower = name.ToLower();
             if (nameLower == ".thumbnails" 
                 || nameLower == "home page highlights" 
                 || name.StartsWith("."))
             {
                 folder.IsVisible = false;
-            }
-            else if (!folder.IsVisible)
-            {
-                // If folder exists but is hidden and shouldn't be, make it visible
-                folder.IsVisible = true;
             }
         }
 
