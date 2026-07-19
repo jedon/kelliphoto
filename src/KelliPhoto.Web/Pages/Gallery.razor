@@ -8,6 +8,7 @@
 @inject IFolderService FolderService
 @inject IPhotoService PhotoService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IHomePageCache HomePageCache
 
 <PageTitle>Gallery - Kelli Thompson Photography</PageTitle>
 
@@ -28,7 +29,7 @@
             </button>
         </div>
 
-        <PhotoGrid FolderId="DisplayFolderId.Value" />
+        <PhotoGrid FolderId="DisplayFolderId.Value" UseHomePageCache="@(!FolderId.HasValue)" />
 
         @if (isSlideshowOpen)
         {
@@ -86,7 +87,7 @@
         }
         else
         {
-            var homePageHighlights = await FolderService.GetFolderByNameAsync("Home Page Highlights");
+            var homePageHighlights = await HomePageCache.GetHighlightsFolderAsync(() => FolderService.GetFolderByNameAsync("Home Page Highlights"));
             DisplayFolderId = homePageHighlights?.Id;
         }
 
