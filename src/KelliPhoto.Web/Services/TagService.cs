@@ -15,10 +15,11 @@ public class TagService : ITagService
 
     public async Task<Tag> EnsureTagAsync(string name, string? group = null)
     {
-        var normalized = NormalizeName(name);
+        var displayName = NormalizeDisplayName(name);
+        var nameNormalized = ToNameNormalized(displayName);
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        var existing = await FindTagByNameAsync(context, normalized);
+        var existing = await FindTagByNameAsync(context, nameNormalized);
         if (existing is not null)
         {
             if (group is not null && existing.Group != group)
@@ -32,12 +33,33 @@ public class TagService : ITagService
 
         var tag = new Tag
         {
-            Name = normalized,
+            Name = displayName,
+            NameNormalized = nameNormalized,
             Group = string.IsNullOrWhiteSpace(group) ? null : group.Trim()
         };
         context.Tags.Add(tag);
-        await context.SaveChangesAsync();
-        return tag;
+
+        try
+        {
+            await context.SaveChangesAsync();
+            return tag;
+        }
+        catch (DbUpdateException)
+        {
+            // Concurrent EnsureTagAsync raced on the unique NameNormalized index.
+            context.Entry(tag).State = EntityState.Detached;
+            var raced = await FindTagByNameAsync(context, nameNormalized);
+            if (raced is null)
+                throw;
+
+            if (group is not null && raced.Group != group)
+            {
+                raced.Group = string.IsNullOrWhiteSpace(group) ? null : group.Trim();
+                await context.SaveChangesAsync();
+            }
+
+            return raced;
+        }
     }
 
     public async Task<List<Tag>> AutocompleteAsync(string prefix, int take = 20)
@@ -51,7 +73,7 @@ public class TagService : ITagService
         var lower = trimmed.ToLowerInvariant();
         var query = context.Tags.AsNoTracking().AsQueryable();
         if (!string.IsNullOrEmpty(trimmed))
-            query = query.Where(t => t.Name.ToLower().StartsWith(lower));
+            query = query.Where(t => t.NameNormalized.StartsWith(lower));
 
         return await query
             .OrderBy(t => t.Name)
@@ -175,15 +197,15 @@ public class TagService : ITagService
 
         var normalizedNames = tagNames
             .Where(n => !string.IsNullOrWhiteSpace(n))
-            .Select(NormalizeName)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Select(n => ToNameNormalized(NormalizeDisplayName(n)))
+            .Distinct(StringComparer.Ordinal)
             .ToList();
         if (normalizedNames.Count == 0)
             return;
 
         await using var context = await _contextFactory.CreateDbContextAsync();
         var distinctFolderIds = folderIds.Distinct().ToList();
-        var nameSet = normalizedNames.Select(n => n.ToLowerInvariant()).ToHashSet();
+        var nameSet = normalizedNames.ToHashSet(StringComparer.Ordinal);
 
         var links = await context.FolderTags
             .Include(ft => ft.Tag)
@@ -191,7 +213,7 @@ public class TagService : ITagService
             .ToListAsync();
 
         var toRemove = links
-            .Where(ft => nameSet.Contains(ft.Tag.Name.ToLowerInvariant()))
+            .Where(ft => nameSet.Contains(ft.Tag.NameNormalized))
             .ToList();
         if (toRemove.Count == 0)
             return;
@@ -202,18 +224,19 @@ public class TagService : ITagService
 
     public IReadOnlyList<string> ListSuggestedGroups() => TagGroups.Suggested;
 
-    private static string NormalizeName(string name)
+    private static string NormalizeDisplayName(string name)
     {
         if (string.IsNullOrWhiteSpace(name))
             throw new ArgumentException("Tag name is required.", nameof(name));
         return name.Trim();
     }
 
-    private static async Task<Tag?> FindTagByNameAsync(ApplicationDbContext context, string normalizedName)
+    private static string ToNameNormalized(string displayName) =>
+        displayName.Trim().ToLowerInvariant();
+
+    private static async Task<Tag?> FindTagByNameAsync(ApplicationDbContext context, string nameNormalized)
     {
-        var lower = normalizedName.ToLowerInvariant();
-        // In-memory and PostgreSQL: compare via ToLower for case-insensitive uniqueness.
         return await context.Tags
-            .FirstOrDefaultAsync(t => t.Name.ToLower() == lower);
+            .FirstOrDefaultAsync(t => t.NameNormalized == nameNormalized);
     }
 }

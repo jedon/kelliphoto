@@ -83,7 +83,7 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
             .OnDelete(DeleteBehavior.Cascade);
 
         builder.Entity<Tag>()
-            .HasIndex(t => t.Name)
+            .HasIndex(t => t.NameNormalized)
             .IsUnique();
 
         builder.Entity<FolderTag>()

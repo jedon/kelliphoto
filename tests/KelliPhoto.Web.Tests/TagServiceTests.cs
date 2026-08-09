@@ -33,10 +33,35 @@ public class TagServiceTests : IDisposable
     {
         var first = await _tagService.EnsureTagAsync("  Monarch  ", "Butterflies");
         var second = await _tagService.EnsureTagAsync("monarch");
+        var third = await _tagService.EnsureTagAsync("MONARCH");
 
         Assert.Equal(first.Id, second.Id);
+        Assert.Equal(first.Id, third.Id);
         Assert.Equal("Monarch", first.Name);
+        Assert.Equal("monarch", first.NameNormalized);
+        Assert.Equal("monarch", second.NameNormalized);
         Assert.Equal("Butterflies", first.Group);
+        Assert.Equal(1, await _context.Tags.CountAsync());
+    }
+
+    [Fact]
+    public async Task EnsureTagAsync_PersistsNameNormalized_ForCaseInsensitiveLookup()
+    {
+        var tag = await _tagService.EnsureTagAsync("Swallowtail");
+
+        // Shared context must see the normalized key used for uniqueness lookups.
+        var stored = await _context.Tags.SingleAsync(t => t.Id == tag.Id);
+        Assert.Equal("Swallowtail", stored.Name);
+        Assert.Equal("swallowtail", stored.NameNormalized);
+
+        var byNormalized = await _context.Tags
+            .SingleOrDefaultAsync(t => t.NameNormalized == "swallowtail");
+        Assert.NotNull(byNormalized);
+        Assert.Equal(tag.Id, byNormalized!.Id);
+
+        // Different display casing must resolve to the same row via NameNormalized.
+        var again = await _tagService.EnsureTagAsync("swallowtail");
+        Assert.Equal(tag.Id, again.Id);
         Assert.Equal(1, await _context.Tags.CountAsync());
     }
 
