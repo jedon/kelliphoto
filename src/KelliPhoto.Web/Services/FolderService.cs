@@ -1,6 +1,7 @@
 using KelliPhoto.Web.Data;
 using KelliPhoto.Web.Data.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql;
 
 namespace KelliPhoto.Web.Services;
@@ -872,19 +873,24 @@ public class FolderService : IFolderService
 
         await using var context = await _contextFactory.CreateDbContextAsync();
 
-        string parentRelative;
+        // Never create a second ParentId == null row (breaks GetTopLevelFoldersAsync single-root mode).
+        // Null parent means "under gallery mount root".
+        Folder parent;
         if (parentFolderId is null)
         {
-            parentRelative = string.Empty;
+            parent = await FindGalleryMountRootAsync(context)
+                ?? throw new InvalidOperationException(
+                    "Cannot create album: gallery mount root folder was not found in the catalog.");
+            parentFolderId = parent.Id;
         }
         else
         {
-            var parent = await context.Folders.AsNoTracking()
+            parent = await context.Folders.AsNoTracking()
                 .FirstOrDefaultAsync(f => f.Id == parentFolderId.Value)
                 ?? throw new ArgumentException($"Parent folder {parentFolderId} not found.", nameof(parentFolderId));
-            parentRelative = parent.Path ?? string.Empty;
         }
 
+        var parentRelative = parent.Path ?? string.Empty;
         var parentFull = _pathService.EnsureUnderGalleryRoot(_pathService.GetFullPath(parentRelative));
         var newFull = _pathService.EnsureUnderGalleryRoot(Path.Combine(parentFull, sanitized));
         var newRelative = _pathService.GetRelativePath(newFull);
@@ -1062,12 +1068,17 @@ public class FolderService : IFolderService
             .Where(f => f.ParentId == parentFolderId)
             .ToListAsync();
 
-        var siblingIds = siblings.Select(f => f.Id).ToHashSet();
+        // Require exact sibling count and distinct IDs so duplicates like [1,1,2] cannot
+        // collapse via HashSet and silently pass a set-equality check.
         var orderedSet = orderedFolderIds.ToHashSet();
-        if (siblingIds.Count != orderedSet.Count || !siblingIds.SetEquals(orderedSet))
+        if (orderedFolderIds.Count != siblings.Count
+            || orderedSet.Count != orderedFolderIds.Count
+            || !siblings.Select(f => f.Id).ToHashSet().SetEquals(orderedSet))
+        {
             throw new ArgumentException(
-                "orderedFolderIds must be a permutation of all sibling folder IDs for the parent.",
+                "orderedFolderIds must be a distinct permutation of all sibling folder IDs for the parent.",
                 nameof(orderedFolderIds));
+        }
 
         var byId = siblings.ToDictionary(f => f.Id);
         for (var i = 0; i < orderedFolderIds.Count; i++)
@@ -1116,6 +1127,15 @@ public class FolderService : IFolderService
             return true;
 
         return IsGalleryMountRoot(folder);
+    }
+
+    private async Task<Folder?> FindGalleryMountRootAsync(ApplicationDbContext context)
+    {
+        var candidates = await context.Folders.AsNoTracking()
+            .Where(f => f.ParentId == null)
+            .ToListAsync();
+
+        return candidates.FirstOrDefault(IsGalleryMountRoot);
     }
 
     private bool IsGalleryMountRoot(Folder folder)
@@ -1215,6 +1235,41 @@ public class FolderService : IFolderService
     }
 
     private async Task PurgeFolderSubtreeFromDbAsync(ApplicationDbContext context, int rootFolderId)
+    {
+        // Prefer an explicit transaction so a mid-purge failure does not leave a half-deleted catalog.
+        // InMemory (and some test providers) do not support transactions — proceed without in that case.
+        IDbContextTransaction? tx = null;
+        try
+        {
+            tx = await context.Database.BeginTransactionAsync();
+        }
+        catch (InvalidOperationException)
+        {
+            // InMemory provider: transactions unsupported; purge continues without transactional atomicity.
+            _logger.LogDebug("Database provider does not support transactions; purging folder {FolderId} without a transaction.", rootFolderId);
+        }
+
+        try
+        {
+            await PurgeFolderSubtreeFromDbCoreAsync(context, rootFolderId);
+
+            if (tx != null)
+                await tx.CommitAsync();
+        }
+        catch
+        {
+            if (tx != null)
+                await tx.RollbackAsync();
+            throw;
+        }
+        finally
+        {
+            if (tx != null)
+                await tx.DisposeAsync();
+        }
+    }
+
+    private static async Task PurgeFolderSubtreeFromDbCoreAsync(ApplicationDbContext context, int rootFolderId)
     {
         var descendantIds = await GetDescendantFolderIdsAsync(context, rootFolderId);
         var allIds = descendantIds.Append(rootFolderId).ToList();

@@ -61,6 +61,31 @@ public class FolderAlbumCrudTests : IDisposable
     }
 
     [Fact]
+    public async Task CreateAlbumAsync_NullParent_ResolvesToMountRoot()
+    {
+        var mount = await SeedMountRootAsync();
+        await AddFolderAsync("Existing", "Existing", mount.Id, sortOrder: 0);
+        Directory.CreateDirectory(Path.Combine(_galleryRoot, "Existing"));
+
+        var created = await _folderService.CreateAlbumAsync(null, "Top Level Album");
+
+        Assert.Equal(mount.Id, created.ParentId);
+        Assert.Equal(1, created.SortOrder);
+        Assert.Equal(1, await _context.Folders.CountAsync(f => f.ParentId == null));
+        Assert.True(Directory.Exists(Path.Combine(_galleryRoot, "Top Level Album")));
+    }
+
+    [Fact]
+    public async Task CreateAlbumAsync_NullParent_NoMountRoot_Throws()
+    {
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _folderService.CreateAlbumAsync(null, "Orphan Album"));
+        Assert.Contains("mount root", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.False(await _context.Folders.AnyAsync());
+        Assert.False(Directory.Exists(Path.Combine(_galleryRoot, "Orphan Album")));
+    }
+
+    [Fact]
     public async Task RenameAlbumAsync_RenamesDirectoryAndRewritesDescendantPaths()
     {
         var mount = await SeedMountRootAsync();
@@ -153,6 +178,25 @@ public class FolderAlbumCrudTests : IDisposable
             .Select(f => f.Id)
             .ToListAsync();
         Assert.Equal(new[] { c.Id, a.Id, b.Id }, ordered);
+    }
+
+    [Fact]
+    public async Task ReorderSiblingsAsync_RejectsDuplicateIds()
+    {
+        var mount = await SeedMountRootAsync();
+        var a = await AddFolderAsync("A", "A", mount.Id, sortOrder: 0);
+        var b = await AddFolderAsync("B", "B", mount.Id, sortOrder: 1);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(
+            () => _folderService.ReorderSiblingsAsync(mount.Id, new[] { a.Id, a.Id, b.Id }));
+        Assert.Contains("distinct", ex.Message, StringComparison.OrdinalIgnoreCase);
+
+        var unchanged = await _context.Folders.AsNoTracking()
+            .Where(f => f.ParentId == mount.Id)
+            .OrderBy(f => f.SortOrder)
+            .Select(f => f.Id)
+            .ToListAsync();
+        Assert.Equal(new[] { a.Id, b.Id }, unchanged);
     }
 
     [Fact]
