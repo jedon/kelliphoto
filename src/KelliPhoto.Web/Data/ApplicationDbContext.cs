@@ -16,6 +16,9 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
     public DbSet<Photo> Photos { get; set; }
     public DbSet<Thumbnail> Thumbnails { get; set; }
     public DbSet<FolderCoverPhoto> FolderCoverPhotos { get; set; }
+    public DbSet<Tag> Tags { get; set; }
+    public DbSet<FolderTag> FolderTags { get; set; }
+    public DbSet<PhotoTag> PhotoTags { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -77,6 +80,40 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
             .HasOne(fcp => fcp.Photo)
             .WithMany()
             .HasForeignKey(fcp => fcp.PhotoId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<Tag>()
+            .HasIndex(t => t.Name)
+            .IsUnique();
+
+        builder.Entity<FolderTag>()
+            .HasKey(ft => new { ft.FolderId, ft.TagId });
+
+        builder.Entity<FolderTag>()
+            .HasOne(ft => ft.Folder)
+            .WithMany()
+            .HasForeignKey(ft => ft.FolderId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<FolderTag>()
+            .HasOne(ft => ft.Tag)
+            .WithMany(t => t.FolderTags)
+            .HasForeignKey(ft => ft.TagId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<PhotoTag>()
+            .HasKey(pt => new { pt.PhotoId, pt.TagId });
+
+        builder.Entity<PhotoTag>()
+            .HasOne(pt => pt.Photo)
+            .WithMany()
+            .HasForeignKey(pt => pt.PhotoId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<PhotoTag>()
+            .HasOne(pt => pt.Tag)
+            .WithMany(t => t.PhotoTags)
+            .HasForeignKey(pt => pt.TagId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -158,6 +158,7 @@ builder.Services.AddSingleton<IScanProgressService, ScanProgressService>();
 builder.Services.AddSingleton<IRateLimitService, RateLimitService>();
 builder.Services.AddSingleton<IHomePageCache, HomePageCache>();
 builder.Services.AddScoped<IFolderService, FolderService>();
+builder.Services.AddScoped<ITagService, TagService>();
 builder.Services.AddScoped<IPhotoService, PhotoService>();
 builder.Services.AddScoped<IThumbnailService, ThumbnailService>();
 builder.Services.AddScoped<IWebImageService, WebImageService>();
