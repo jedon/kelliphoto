@@ -14,5 +14,7 @@ public interface ITagService
     Task DetachFromPhotoAsync(int photoId, int tagId);
     Task BulkAttachToFoldersAsync(IReadOnlyList<int> folderIds, IReadOnlyList<string> tagNames);
     Task BulkDetachFromFoldersAsync(IReadOnlyList<int> folderIds, IReadOnlyList<string> tagNames);
+    Task BulkAttachToPhotosAsync(IReadOnlyList<int> photoIds, IReadOnlyList<string> tagNames);
+    Task BulkDetachFromPhotosAsync(IReadOnlyList<int> photoIds, IReadOnlyList<string> tagNames);
     IReadOnlyList<string> ListSuggestedGroups();
 }

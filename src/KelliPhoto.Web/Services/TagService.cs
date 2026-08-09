@@ -222,6 +222,77 @@ public class TagService : ITagService
         await context.SaveChangesAsync();
     }
 
+    public async Task BulkAttachToPhotosAsync(IReadOnlyList<int> photoIds, IReadOnlyList<string> tagNames)
+    {
+        if (photoIds.Count == 0 || tagNames.Count == 0)
+            return;
+
+        var tags = new List<Tag>();
+        foreach (var name in tagNames)
+        {
+            if (string.IsNullOrWhiteSpace(name))
+                continue;
+            tags.Add(await EnsureTagAsync(name));
+        }
+
+        if (tags.Count == 0)
+            return;
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var distinctPhotoIds = photoIds.Distinct().ToList();
+        var tagIds = tags.Select(t => t.Id).Distinct().ToList();
+
+        var existing = await context.PhotoTags
+            .Where(pt => distinctPhotoIds.Contains(pt.PhotoId) && tagIds.Contains(pt.TagId))
+            .Select(pt => new { pt.PhotoId, pt.TagId })
+            .ToListAsync();
+        var existingSet = existing.Select(e => (e.PhotoId, e.TagId)).ToHashSet();
+
+        foreach (var photoId in distinctPhotoIds)
+        {
+            foreach (var tagId in tagIds)
+            {
+                if (existingSet.Contains((photoId, tagId)))
+                    continue;
+                context.PhotoTags.Add(new PhotoTag { PhotoId = photoId, TagId = tagId });
+            }
+        }
+
+        await context.SaveChangesAsync();
+    }
+
+    public async Task BulkDetachFromPhotosAsync(IReadOnlyList<int> photoIds, IReadOnlyList<string> tagNames)
+    {
+        if (photoIds.Count == 0 || tagNames.Count == 0)
+            return;
+
+        var normalizedNames = tagNames
+            .Where(n => !string.IsNullOrWhiteSpace(n))
+            .Select(n => ToNameNormalized(NormalizeDisplayName(n)))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (normalizedNames.Count == 0)
+            return;
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var distinctPhotoIds = photoIds.Distinct().ToList();
+        var nameSet = normalizedNames.ToHashSet(StringComparer.Ordinal);
+
+        var links = await context.PhotoTags
+            .Include(pt => pt.Tag)
+            .Where(pt => distinctPhotoIds.Contains(pt.PhotoId))
+            .ToListAsync();
+
+        var toRemove = links
+            .Where(pt => nameSet.Contains(pt.Tag.NameNormalized))
+            .ToList();
+        if (toRemove.Count == 0)
+            return;
+
+        context.PhotoTags.RemoveRange(toRemove);
+        await context.SaveChangesAsync();
+    }
+
     public IReadOnlyList<string> ListSuggestedGroups() => TagGroups.Suggested;
 
     private static string NormalizeDisplayName(string name)

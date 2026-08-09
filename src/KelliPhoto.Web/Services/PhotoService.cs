@@ -681,6 +681,26 @@ public class PhotoService : IPhotoService
         }
     }
 
+    public async Task SetPhotosVisibilityAsync(IReadOnlyList<int> photoIds, bool isVisible)
+    {
+        if (photoIds is null || photoIds.Count == 0)
+            return;
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var distinctIds = photoIds.Distinct().ToList();
+        var photos = await context.Photos
+            .Where(p => distinctIds.Contains(p.Id))
+            .ToListAsync();
+
+        foreach (var photo in photos)
+        {
+            photo.IsVisible = isVisible;
+        }
+
+        await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
+    }
+
     public async Task UpdatePhotoDisplayNameAsync(int photoId, string? displayName)
     {
         await using var context = await _contextFactory.CreateDbContextAsync();
