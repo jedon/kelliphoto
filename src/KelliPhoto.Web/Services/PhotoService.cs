@@ -519,6 +519,24 @@ public class PhotoService : IPhotoService
                     
                     _logger.LogDebug("Saved batch of {NewCount} new and {UpdatedCount} updated photos in {ElapsedMs}ms", 
                         newPhotos.Count, updatedPhotos.Count, saveStopwatch.ElapsedMilliseconds);
+
+                    // Best-effort EXIF mirror population for newly inserted photos
+                    if (_photoMetadataService is not null && newPhotos.Count > 0)
+                    {
+                        foreach (var newPhoto in newPhotos)
+                        {
+                            try
+                            {
+                                await _photoMetadataService.RefreshFromFileAsync(newPhoto.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex,
+                                    "Failed to refresh EXIF mirror for photo {PhotoId} at {FilePath}",
+                                    newPhoto.Id, newPhoto.FilePath);
+                            }
+                        }
+                    }
                     
                     // Clear batch lists
                     newPhotos.Clear();

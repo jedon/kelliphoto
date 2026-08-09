@@ -206,6 +206,33 @@ public class PhotoScanningPerformanceTests : IDisposable
     }
 
     [Fact]
+    public async Task ScanPhotosInFolderBatchedAsync_CallsRefreshFromFileForNewPhotos()
+    {
+        var folder = await _context.Folders.FirstAsync();
+        await CreateTestImages(3);
+
+        var mockMeta = new Mock<IPhotoMetadataService>();
+        mockMeta.Setup(m => m.RefreshFromFileAsync(It.IsAny<int>())).Returns(Task.CompletedTask);
+
+        var logger = LoggerFactory.Create(b => b.AddConsole()).CreateLogger<PhotoService>();
+        var service = new PhotoService(
+            _contextFactory,
+            _pathService,
+            logger,
+            photoMetadataService: mockMeta.Object);
+
+        var photos = await service.ScanPhotosInFolderBatchedAsync(
+            folder.Id,
+            folder.Path,
+            _mockProgressService.Object,
+            batchSize: 2);
+
+        Assert.Equal(3, photos.Count);
+        foreach (var photo in photos)
+            mockMeta.Verify(m => m.RefreshFromFileAsync(photo.Id), Times.Once);
+    }
+
+    [Fact]
     public async Task BatchedMethod_WithExistingPhotos_UpdatesCorrectly()
     {
         // Arrange

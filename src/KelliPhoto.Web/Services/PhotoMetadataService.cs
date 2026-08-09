@@ -4,6 +4,11 @@ using KelliPhoto.Web.Data;
 using KelliPhoto.Web.Data.Models;
 using Microsoft.EntityFrameworkCore;
 using SixLabors.ImageSharp;
+using SixLabors.ImageSharp.Formats;
+using SixLabors.ImageSharp.Formats.Bmp;
+using SixLabors.ImageSharp.Formats.Jpeg;
+using SixLabors.ImageSharp.Formats.Png;
+using SixLabors.ImageSharp.Formats.Tiff;
 using SixLabors.ImageSharp.Metadata.Profiles.Exif;
 
 namespace KelliPhoto.Web.Services;
@@ -237,9 +242,63 @@ public class PhotoMetadataService : IPhotoMetadataService
             }
 
             image.Metadata.ExifProfile = profile;
-            image.Save(fullPath);
+            SaveWithQualityPreservingEncoder(image, fullPath);
         }
     }
+
+    private static void SaveWithQualityPreservingEncoder(Image image, string fullPath)
+    {
+        var extension = Path.GetExtension(fullPath).ToLowerInvariant();
+        var decoded = image.Metadata.DecodedImageFormat;
+
+        if (IsJpeg(extension, decoded))
+        {
+            image.Save(fullPath, new JpegEncoder { Quality = 95 });
+            return;
+        }
+
+        if (IsPng(extension, decoded))
+        {
+            image.Save(fullPath, new PngEncoder());
+            return;
+        }
+
+        if (IsBmp(extension, decoded))
+        {
+            image.Save(fullPath, new BmpEncoder());
+            return;
+        }
+
+        if (IsTiff(extension, decoded))
+        {
+            image.Save(fullPath, new TiffEncoder());
+            return;
+        }
+
+        var formatName = !string.IsNullOrEmpty(extension)
+            ? extension
+            : decoded?.Name ?? "unknown";
+        throw new InvalidOperationException(
+            $"Unsupported image format for EXIF write: '{Path.GetFileName(fullPath)}' ({formatName}). " +
+            "EXIF refresh/read is supported for this file, but writing would risk quality loss. " +
+            "Supported write formats: JPEG, PNG, BMP, TIFF.");
+    }
+
+    private static bool IsJpeg(string extension, IImageFormat? decoded) =>
+        extension is ".jpg" or ".jpeg"
+        || string.Equals(decoded?.Name, "JPEG", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsPng(string extension, IImageFormat? decoded) =>
+        extension is ".png"
+        || string.Equals(decoded?.Name, "PNG", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsBmp(string extension, IImageFormat? decoded) =>
+        extension is ".bmp"
+        || string.Equals(decoded?.Name, "BMP", StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsTiff(string extension, IImageFormat? decoded) =>
+        extension is ".tif" or ".tiff"
+        || string.Equals(decoded?.Name, "TIFF", StringComparison.OrdinalIgnoreCase);
 
     private static ParsedExif ParseProfile(ExifProfile profile)
     {

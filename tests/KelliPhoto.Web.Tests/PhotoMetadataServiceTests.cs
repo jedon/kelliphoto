@@ -135,6 +135,62 @@ public class PhotoMetadataServiceTests : IDisposable
         Assert.Contains("Unsupported", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task UpdateAsync_Jpeg_RewritesWithHighQualityEncoder()
+    {
+        var photo = await SeedPhotoWithJpegAsync("album", "hq.jpg", exif: profile =>
+        {
+            profile.SetValue(ExifTag.Artist, "Before");
+        });
+
+        var fullPath = _pathService.ResolveExistingPhotoFilePath(photo.FilePath)!;
+        var sizeBefore = new FileInfo(fullPath).Length;
+
+        await _service.UpdateAsync(photo.Id, new PhotoExifUpdate { Artist = "After" });
+
+        var sizeAfter = new FileInfo(fullPath).Length;
+        Assert.True(sizeAfter > 0);
+
+        // Quality 95 rewrite should not collapse a tiny JPEG to a tiny default-quality blob.
+        // With Q=95 on a 32x24 image the file stays in a similar size band (not ~half).
+        Assert.True(sizeAfter >= sizeBefore / 2,
+            $"Expected high-quality JPEG rewrite; before={sizeBefore}, after={sizeAfter}");
+
+        using var image = await Image.LoadAsync(fullPath);
+        Assert.True(image.Metadata.ExifProfile!.TryGetValue(ExifTag.Artist, out var artist));
+        Assert.Equal("After", artist.Value);
+    }
+
+    [Fact]
+    public async Task UpdateAsync_Gif_ThrowsUnsupportedWriteMessage()
+    {
+        var folder = await SeedFolderAsync("album");
+        var relative = Path.Combine("album", "anim.gif");
+        var full = Path.Combine(_galleryRoot, relative);
+        Directory.CreateDirectory(Path.GetDirectoryName(full)!);
+
+        using (var image = new Image<Rgba32>(16, 16))
+        {
+            await image.SaveAsGifAsync(full);
+        }
+
+        var photo = new Photo
+        {
+            Filename = "anim.gif",
+            FolderId = folder.Id,
+            FilePath = relative.Replace('\\', '/'),
+            FileSize = new FileInfo(full).Length,
+            IsVisible = true
+        };
+        _context.Photos.Add(photo);
+        await _context.SaveChangesAsync();
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _service.UpdateAsync(photo.Id, new PhotoExifUpdate { Artist = "Nope" }));
+        Assert.Contains("Unsupported image format for EXIF write", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("GIF", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
     private async Task<Folder> SeedFolderAsync(string name)
     {
         var folder = new Folder
