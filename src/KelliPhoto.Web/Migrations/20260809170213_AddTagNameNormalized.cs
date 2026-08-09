@@ -1,10 +1,13 @@
-﻿using Microsoft.EntityFrameworkCore.Migrations;
+﻿using KelliPhoto.Web.Data;
+using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
 namespace KelliPhoto.Web.Migrations
 {
-    /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20260809170213_AddTagNameNormalized")]
     public partial class AddTagNameNormalized : Migration
     {
         /// <inheritdoc />
