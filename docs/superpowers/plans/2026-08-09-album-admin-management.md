@@ -1,6 +1,6 @@
 # Album Admin Management Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Give admins always-on album management on home and `/admin` (add/delete/hide/show/reorder with drag or position, multiselect), plus album/photo tags and photo EXIF edit with write-back to disk.
 
@@ -47,7 +47,7 @@
 - Modify: `src/KelliPhoto.Web/Services/IFolderService.cs`
 - Create: `tests/KelliPhoto.Web.Tests/PathContainmentTests.cs`
 
-- [ ] **Step 1: Write failing tests for containment**
+- [x] **Step 1: Write failing tests for containment**
 
 ```csharp
 public class PathContainmentTests
@@ -92,13 +92,13 @@ public class PathContainmentTests
 }
 ```
 
-- [ ] **Step 2: Run tests — expect FAIL** (method missing)
+- [x] **Step 2: Run tests — expect FAIL** (method missing)
 
 ```powershell
 dotnet test tests/KelliPhoto.Web.Tests/KelliPhoto.Web.Tests.csproj --filter "FullyQualifiedName~PathContainmentTests"
 ```
 
-- [ ] **Step 3: Implement `EnsureUnderGalleryRoot` on `IPathService` / `PathService`**
+- [x] **Step 3: Implement `EnsureUnderGalleryRoot` on `IPathService` / `PathService`**
 
 ```csharp
 // IPathService
@@ -119,7 +119,7 @@ public string EnsureUnderGalleryRoot(string fullPath)
 }
 ```
 
-- [ ] **Step 4: Extend `IFolderService` with new method signatures (throw `NotImplementedException` in `FolderService` until Task 2–3)**
+- [x] **Step 4: Extend `IFolderService` with new method signatures (throw `NotImplementedException` in `FolderService` until Task 2–3)**
 
 ```csharp
 Task<Folder> CreateAlbumAsync(int? parentFolderId, string name);
@@ -133,7 +133,7 @@ bool IsProtectedFolder(Folder folder);
 
 `IsProtectedFolder`: true when name equals `"Home Page Highlights"` (case-insensitive) or folder is the single gallery root used by `GetTopLevelFoldersAsync` (name match for root like `kelli.photo` / path is gallery root relative). Prefer: protect by name `Home Page Highlights` and by `ParentId == null` root folder(s) that represent the mount root.
 
-- [ ] **Step 5: Run containment tests — PASS; commit**
+- [x] **Step 5: Run containment tests — PASS; commit**
 
 ```powershell
 git add src/KelliPhoto.Web/Services/IPathService.cs src/KelliPhoto.Web/Services/PathService.cs src/KelliPhoto.Web/Services/IFolderService.cs src/KelliPhoto.Web/Services/FolderService.cs tests/KelliPhoto.Web.Tests/PathContainmentTests.cs
@@ -149,7 +149,7 @@ git commit -m "feat: add gallery path containment and album CRUD service API"
 - Create: `tests/KelliPhoto.Web.Tests/FolderAlbumCrudTests.cs`
 - Follow fixture pattern from `FolderSortOrderTests` (in-memory EF + temp `GallerySettings:GalleryPath`)
 
-- [ ] **Step 1: Write failing CRUD tests**
+- [x] **Step 1: Write failing CRUD tests**
 
 Cover at least:
 1. `CreateAlbumAsync` creates directory under parent and DB row with next `SortOrder`.
@@ -161,9 +161,9 @@ Cover at least:
 
 Use a dedicated temp gallery directory per test class (not `Path.GetTempPath()` root alone).
 
-- [ ] **Step 2: Run — expect FAIL / NotImplemented**
+- [x] **Step 2: Run — expect FAIL / NotImplemented**
 
-- [ ] **Step 3: Implement methods in `FolderService`**
+- [x] **Step 3: Implement methods in `FolderService`**
 
 Create:
 - Sanitize name: trim; reject empty, `.`, `..`, path separators, invalid filename chars.
@@ -187,7 +187,7 @@ Reorder:
 
 Bulk visibility: update all IDs; invalidate cache.
 
-- [ ] **Step 4: Tests PASS; commit**
+- [x] **Step 4: Tests PASS; commit**
 
 ```powershell
 git commit -m "feat: implement disk-backed album create, rename, delete, reorder"
@@ -214,9 +214,9 @@ public static class TagGroups
 }
 ```
 
-- [ ] **Step 1: Failing TagService tests** — create tag (case-insensitive unique), attach/detach folder & photo, autocomplete by prefix, bulk attach to folders.
+- [x] **Step 1: Failing TagService tests** — create tag (case-insensitive unique), attach/detach folder & photo, autocomplete by prefix, bulk attach to folders.
 
-- [ ] **Step 2: Implement models + DbContext config**
+- [x] **Step 2: Implement models + DbContext config**
 
 ```csharp
 public class Tag
@@ -230,9 +230,9 @@ public class Tag
 
 Unique index on `Tag.Name` with store lowercase or use EF value comparer — simplest: normalize to trimmed original display but uniqueness via `Name.ToLower()` shadow or enforce in service with `EF.Functions.ILike` / in-memory `StringComparer.OrdinalIgnoreCase`.
 
-- [ ] **Step 3: Migration + TagService + DI**
+- [x] **Step 3: Migration + TagService + DI**
 
-- [ ] **Step 4: Tests PASS; commit**
+- [x] **Step 4: Tests PASS; commit**
 
 ```powershell
 git commit -m "feat: add tag model and TagService for albums and photos"
@@ -248,19 +248,19 @@ git commit -m "feat: add tag model and TagService for albums and photos"
 - Hook: after photo create in `PhotoService` scan/upload, call `RefreshFromFileAsync` (best-effort log on failure)
 - Tests: `PhotoMetadataServiceTests.cs` with a temp JPEG written via ImageSharp
 
-- [ ] **Step 1: Failing test — write EXIF DateTaken/Artist to temp JPEG, RefreshFromFile, assert mirror; UpdateAsync writes file + mirror**
+- [x] **Step 1: Failing test — write EXIF DateTaken/Artist to temp JPEG, RefreshFromFile, assert mirror; UpdateAsync writes file + mirror**
 
-- [ ] **Step 2: Implement `PhotoExif` 1:1 with `PhotoId` PK/FK cascade delete**
+- [x] **Step 2: Implement `PhotoExif` 1:1 with `PhotoId` PK/FK cascade delete**
 
 Columns per spec + `ExtraJson` (nvarchar/json).
 
-- [ ] **Step 3: `PhotoMetadataService`
+- [x] **Step 3: `PhotoMetadataService`
   - `RefreshFromFileAsync(photoId)` — resolve path via `IPathService.ResolveExistingPhotoFilePath`, load ImageSharp ExifProfile, map known tags, stash rest in ExtraJson.
   - `GetAsync(photoId)`
   - `UpdateAsync(photoId, PhotoExifUpdate dto)` — load image, set Exif values, save image to disk (same path), then refresh mirror. On IO/ImageSharp failure: throw; do not update DB.
   - Invalidate home cache if `TakenAt` / description-related fields change on Photo row (`Photo.TakenAt` sync from DateTaken).
 
-- [ ] **Step 4: Tests PASS; commit**
+- [x] **Step 4: Tests PASS; commit**
 
 ```powershell
 git commit -m "feat: add PhotoExif mirror and EXIF read/write service"
@@ -284,9 +284,9 @@ git commit -m "feat: add PhotoExif mirror and EXIF read/write service"
 - Toolbar: Add album (prompt name → `CreateAlbumAsync`), Select all/none, bulk Show/Hide/Delete (confirm with counts from `GetAlbumSubtreeCountsAsync`), bulk tag add/remove via `ITagService`
 - Pencil → `EventCallback<int> OnEditAlbum`
 
-- [ ] **Step 1: Implement JS + components (manual verify via existing app later; unit-test service already done)**
+- [x] **Step 1: Implement JS + components (manual verify via existing app later; unit-test service already done)**
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```powershell
 git commit -m "feat: add shared album admin grid and toolbar components"
@@ -301,9 +301,9 @@ git commit -m "feat: add shared album admin grid and toolbar components"
 - Modify: `Admin.razor` — for selected folder, show `AlbumAdminGrid` of children + toolbar; keep existing detail panel for covers/upload or open `FolderEditDialog`
 - Extend: `FolderEditDialog.razor` — on name save use `RenameAlbumAsync` when name changed; add tag editor using `ITagService`; keep covers/visibility/description via existing `UpdateFolderSettingsAsync` / cover APIs
 
-- [ ] **Step 1: Wire UI; ensure non-admin path unchanged**
+- [x] **Step 1: Wire UI; ensure non-admin path unchanged**
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```powershell
 git commit -m "feat: wire album admin management into gallery and admin page"
@@ -318,9 +318,9 @@ git commit -m "feat: wire album admin management into gallery and admin page"
 - Modify: `PhotoGrid.razor` — when admin: checkboxes, bulk show/hide (`IPhotoService` visibility if present; else add `SetPhotosVisibilityAsync`), bulk tags, button to open metadata dialog for one photo
 - If `IPhotoService` lacks visibility bulk, add minimal method mirroring folders
 
-- [ ] **Step 1: Implement dialog bound to `IPhotoMetadataService` + `ITagService`**
+- [x] **Step 1: Implement dialog bound to `IPhotoMetadataService` + `ITagService`**
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```powershell
 git commit -m "feat: add photo EXIF/tag inspector and admin photo multiselect"
@@ -330,7 +330,7 @@ git commit -m "feat: add photo EXIF/tag inspector and admin photo multiselect"
 
 ### Task 8: Verification suite + polish
 
-- [ ] **Step 1: Run full unit test project**
+- [x] **Step 1: Run full unit test project**
 
 ```powershell
 dotnet test tests/KelliPhoto.Web.Tests/KelliPhoto.Web.Tests.csproj
@@ -338,9 +338,9 @@ dotnet test tests/KelliPhoto.Web.Tests/KelliPhoto.Web.Tests.csproj
 
 Expected: all pass.
 
-- [ ] **Step 2: Fix any regressions from FolderService constructor/DI**
+- [x] **Step 2: Fix any regressions from FolderService constructor/DI**
 
-- [ ] **Step 3: Final commit if fixes needed**
+- [x] **Step 3: Final commit if fixes needed**
 
 ```powershell
 git commit -m "test: fix album admin regressions and polish"
