@@ -164,7 +164,7 @@
 
             <footer class="photo-meta-footer">
                 <button type="button" class="btn btn-outline-secondary" @onclick="Close" disabled="@_isSaving">Cancel</button>
-                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@(_isSaving || _isLoading)">
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@(!CanSave)">
                     @(_isSaving ? "Saving…" : "Save")
                 </button>
             </footer>
@@ -181,8 +181,13 @@
     private bool _isLoading;
     private bool _isSaving;
     private bool _isRefreshing;
+    private bool _mirrorReady;
     private string? _errorMessage;
     private int? _lastLoadedPhotoId;
+    private int? _failedLoadPhotoId;
+
+    private bool CanSave =>
+        !_isLoading && !_isSaving && !_isRefreshing && _mirrorReady && string.IsNullOrEmpty(_errorMessage);
 
     private DateTime? _dateTaken;
     private string? _cameraMake;
@@ -213,31 +218,57 @@
         if (_lastLoadedPhotoId == PhotoId)
             return;
 
+        // Avoid retry loops while the dialog stays open after a failed load.
+        // Close() clears _failedLoadPhotoId so reopen can retry.
+        if (_failedLoadPhotoId == PhotoId)
+            return;
+
         await LoadAsync(PhotoId.Value);
     }
 
     private async Task LoadAsync(int photoId)
     {
-        _lastLoadedPhotoId = photoId;
         _errorMessage = null;
         _tagMessage = null;
         _tagInput = "";
         _tagGroup = "";
         _tagSuggestions = new();
+        _mirrorReady = false;
         _isLoading = true;
 
         try
         {
             var exif = await PhotoMetadataService.GetAsync(photoId);
+            if (exif is null)
+            {
+                await PhotoMetadataService.RefreshFromFileAsync(photoId);
+                exif = await PhotoMetadataService.GetAsync(photoId);
+            }
+
+            if (exif is null)
+            {
+                _errorMessage = "Could not load EXIF metadata for this photo.";
+                ClearForm();
+                _failedLoadPhotoId = photoId;
+                _tags = await TagService.GetTagsForPhotoAsync(photoId);
+                _suggestedGroups = TagService.ListSuggestedGroups();
+                return;
+            }
+
             ApplyExifToForm(exif);
             _tags = await TagService.GetTagsForPhotoAsync(photoId);
             _suggestedGroups = TagService.ListSuggestedGroups();
+            _mirrorReady = true;
+            _failedLoadPhotoId = null;
+            _lastLoadedPhotoId = photoId;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to load photo metadata for {PhotoId}", photoId);
             _errorMessage = $"Could not load metadata: {ex.Message}";
             ClearForm();
+            _mirrorReady = false;
+            _failedLoadPhotoId = photoId;
         }
         finally
         {
@@ -298,12 +329,23 @@
         {
             await PhotoMetadataService.RefreshFromFileAsync(PhotoId.Value);
             var exif = await PhotoMetadataService.GetAsync(PhotoId.Value);
+            if (exif is null)
+            {
+                _errorMessage = "Could not load EXIF metadata for this photo.";
+                _mirrorReady = false;
+                return;
+            }
+
             ApplyExifToForm(exif);
+            _mirrorReady = true;
+            _failedLoadPhotoId = null;
+            _lastLoadedPhotoId = PhotoId.Value;
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "RefreshFromFileAsync failed for photo {PhotoId}", PhotoId);
             _errorMessage = ex.Message;
+            _mirrorReady = false;
         }
         finally
         {
@@ -384,7 +426,7 @@
 
     private async Task SaveAsync()
     {
-        if (!PhotoId.HasValue)
+        if (!PhotoId.HasValue || !CanSave)
             return;
 
         _isSaving = true;
@@ -436,6 +478,8 @@
     private async Task Close()
     {
         _lastLoadedPhotoId = null;
+        _failedLoadPhotoId = null;
+        _mirrorReady = false;
         await OnClose.InvokeAsync();
     }
 }
