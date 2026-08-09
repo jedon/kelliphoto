@@ -866,29 +866,414 @@ public class FolderService : IFolderService
             .ToListAsync();
     }
 
-    public Task<Folder> CreateAlbumAsync(int? parentFolderId, string name) =>
-        throw new NotImplementedException();
+    public async Task<Folder> CreateAlbumAsync(int? parentFolderId, string name)
+    {
+        var sanitized = SanitizeAlbumName(name);
 
-    public Task RenameAlbumAsync(int folderId, string newName) =>
-        throw new NotImplementedException();
+        await using var context = await _contextFactory.CreateDbContextAsync();
 
-    public Task DeleteAlbumRecursiveAsync(int folderId) =>
-        throw new NotImplementedException();
+        string parentRelative;
+        if (parentFolderId is null)
+        {
+            parentRelative = string.Empty;
+        }
+        else
+        {
+            var parent = await context.Folders.AsNoTracking()
+                .FirstOrDefaultAsync(f => f.Id == parentFolderId.Value)
+                ?? throw new ArgumentException($"Parent folder {parentFolderId} not found.", nameof(parentFolderId));
+            parentRelative = parent.Path ?? string.Empty;
+        }
 
-    public Task ReorderSiblingsAsync(int? parentFolderId, IReadOnlyList<int> orderedFolderIds) =>
-        throw new NotImplementedException();
+        var parentFull = _pathService.EnsureUnderGalleryRoot(_pathService.GetFullPath(parentRelative));
+        var newFull = _pathService.EnsureUnderGalleryRoot(Path.Combine(parentFull, sanitized));
+        var newRelative = _pathService.GetRelativePath(newFull);
 
-    public Task SetFoldersVisibilityAsync(IReadOnlyList<int> folderIds, bool isVisible) =>
-        throw new NotImplementedException();
+        if (Directory.Exists(newFull))
+            throw new InvalidOperationException($"Directory already exists: {sanitized}");
 
-    public Task<(int ChildAlbumCount, int PhotoCount)> GetAlbumSubtreeCountsAsync(int folderId) =>
-        throw new NotImplementedException();
+        if (await context.Folders.AnyAsync(f => f.Path == newRelative))
+            throw new InvalidOperationException($"Album path already exists in catalog: {newRelative}");
+
+        Directory.CreateDirectory(newFull);
+
+        try
+        {
+            var maxSort = await context.Folders
+                .Where(f => f.ParentId == parentFolderId)
+                .Select(f => (int?)f.SortOrder)
+                .MaxAsync() ?? -1;
+
+            var folder = new Folder
+            {
+                Name = sanitized,
+                Path = newRelative,
+                ParentId = parentFolderId,
+                CreatedAt = DateTime.UtcNow,
+                IsVisible = true,
+                SortOrder = maxSort + 1
+            };
+            context.Folders.Add(folder);
+            await context.SaveChangesAsync();
+            _homePageCache?.Invalidate();
+            return folder;
+        }
+        catch
+        {
+            try
+            {
+                if (Directory.Exists(newFull) && !Directory.EnumerateFileSystemEntries(newFull).Any())
+                    Directory.Delete(newFull);
+            }
+            catch (Exception cleanupEx)
+            {
+                _logger.LogWarning(cleanupEx, "Failed to clean up directory after create failure: {Path}", newFull);
+            }
+
+            throw;
+        }
+    }
+
+    public async Task RenameAlbumAsync(int folderId, string newName)
+    {
+        var sanitized = SanitizeAlbumName(newName);
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var folder = await context.Folders.FirstOrDefaultAsync(f => f.Id == folderId)
+            ?? throw new ArgumentException($"Folder with ID {folderId} not found", nameof(folderId));
+
+        if (IsProtectedFolder(folder))
+            throw new InvalidOperationException($"Cannot rename protected folder '{folder.Name}'.");
+
+        var oldRelative = folder.Path ?? string.Empty;
+        var oldFull = _pathService.EnsureUnderGalleryRoot(_pathService.GetFullPath(oldRelative));
+
+        var parentDir = Path.GetDirectoryName(oldFull)
+            ?? _pathService.EnsureUnderGalleryRoot(_pathService.GetFullPath(string.Empty));
+        var newFull = _pathService.EnsureUnderGalleryRoot(Path.Combine(parentDir, sanitized));
+        var newRelative = _pathService.GetRelativePath(newFull);
+
+        if (string.Equals(oldFull, newFull, StringComparison.OrdinalIgnoreCase))
+        {
+            folder.Name = sanitized;
+            await context.SaveChangesAsync();
+            _homePageCache?.Invalidate();
+            return;
+        }
+
+        if (Directory.Exists(newFull))
+            throw new InvalidOperationException($"Target directory already exists: {sanitized}");
+
+        if (await context.Folders.AnyAsync(f => f.Id != folderId && f.Path == newRelative))
+            throw new InvalidOperationException($"Album path already exists in catalog: {newRelative}");
+
+        if (!Directory.Exists(oldFull))
+            throw new DirectoryNotFoundException($"Album directory not found: {oldFull}");
+
+        Directory.Move(oldFull, newFull);
+
+        try
+        {
+            var descendantIds = await GetDescendantFolderIdsAsync(context, folderId);
+            var subtreeIds = descendantIds.Append(folderId).ToList();
+
+            var foldersToRewrite = await context.Folders
+                .Where(f => subtreeIds.Contains(f.Id))
+                .ToListAsync();
+
+            foreach (var f in foldersToRewrite)
+            {
+                f.Path = RewritePathPrefix(f.Path, oldRelative, newRelative);
+                if (f.Id == folderId)
+                    f.Name = sanitized;
+            }
+
+            var photos = await context.Photos
+                .Where(p => subtreeIds.Contains(p.FolderId))
+                .ToListAsync();
+
+            foreach (var photo in photos)
+            {
+                photo.FilePath = RewritePathPrefix(photo.FilePath, oldRelative, newRelative);
+            }
+
+            await context.SaveChangesAsync();
+            _homePageCache?.Invalidate();
+        }
+        catch
+        {
+            try
+            {
+                if (Directory.Exists(newFull) && !Directory.Exists(oldFull))
+                    Directory.Move(newFull, oldFull);
+            }
+            catch (Exception moveBackEx)
+            {
+                _logger.LogError(moveBackEx,
+                    "DB rename failed and disk move-back also failed. Old={Old} New={New}",
+                    oldFull, newFull);
+            }
+
+            throw;
+        }
+    }
+
+    public async Task DeleteAlbumRecursiveAsync(int folderId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var folder = await context.Folders.FirstOrDefaultAsync(f => f.Id == folderId)
+            ?? throw new ArgumentException($"Folder with ID {folderId} not found", nameof(folderId));
+
+        if (IsProtectedFolder(folder))
+            throw new InvalidOperationException($"Cannot delete protected folder '{folder.Name}'.");
+
+        var fullPath = _pathService.EnsureUnderGalleryRoot(_pathService.GetFullPath(folder.Path ?? string.Empty));
+
+        if (Directory.Exists(fullPath))
+        {
+            try
+            {
+                Directory.Delete(fullPath, recursive: true);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to delete album directory {Path}; aborting DB purge", fullPath);
+                throw;
+            }
+        }
+        else
+        {
+            _logger.LogWarning(
+                "Album directory missing at {Path}; purging catalog subtree for folder {FolderId}",
+                fullPath, folderId);
+        }
+
+        await PurgeFolderSubtreeFromDbAsync(context, folderId);
+        _homePageCache?.Invalidate();
+    }
+
+    public async Task ReorderSiblingsAsync(int? parentFolderId, IReadOnlyList<int> orderedFolderIds)
+    {
+        if (orderedFolderIds is null)
+            throw new ArgumentNullException(nameof(orderedFolderIds));
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var siblings = await context.Folders
+            .Where(f => f.ParentId == parentFolderId)
+            .ToListAsync();
+
+        var siblingIds = siblings.Select(f => f.Id).ToHashSet();
+        var orderedSet = orderedFolderIds.ToHashSet();
+        if (siblingIds.Count != orderedSet.Count || !siblingIds.SetEquals(orderedSet))
+            throw new ArgumentException(
+                "orderedFolderIds must be a permutation of all sibling folder IDs for the parent.",
+                nameof(orderedFolderIds));
+
+        var byId = siblings.ToDictionary(f => f.Id);
+        for (var i = 0; i < orderedFolderIds.Count; i++)
+        {
+            byId[orderedFolderIds[i]].SortOrder = i;
+        }
+
+        await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
+    }
+
+    public async Task SetFoldersVisibilityAsync(IReadOnlyList<int> folderIds, bool isVisible)
+    {
+        if (folderIds is null || folderIds.Count == 0)
+            return;
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var folders = await context.Folders
+            .Where(f => folderIds.Contains(f.Id))
+            .ToListAsync();
+
+        foreach (var folder in folders)
+        {
+            folder.IsVisible = isVisible;
+        }
+
+        await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
+    }
+
+    public async Task<(int ChildAlbumCount, int PhotoCount)> GetAlbumSubtreeCountsAsync(int folderId)
+    {
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        if (!await context.Folders.AnyAsync(f => f.Id == folderId))
+            throw new ArgumentException($"Folder with ID {folderId} not found", nameof(folderId));
+
+        var descendantIds = await GetDescendantFolderIdsAsync(context, folderId);
+        var allIds = descendantIds.Append(folderId).ToList();
+        var photoCount = await context.Photos.CountAsync(p => allIds.Contains(p.FolderId));
+        return (descendantIds.Count, photoCount);
+    }
 
     public bool IsProtectedFolder(Folder folder)
     {
-        if (folder.ParentId == null)
+        if (string.Equals(folder.Name, "Home Page Highlights", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        return string.Equals(folder.Name, "Home Page Highlights", StringComparison.OrdinalIgnoreCase);
+        return IsGalleryMountRoot(folder);
+    }
+
+    private bool IsGalleryMountRoot(Folder folder)
+    {
+        var relative = (folder.Path ?? string.Empty).Trim()
+            .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\');
+
+        if (string.IsNullOrEmpty(relative) || relative == ".")
+            return true;
+
+        try
+        {
+            var full = _pathService.EnsureUnderGalleryRoot(_pathService.GetFullPath(folder.Path ?? string.Empty));
+            var galleryRoot = _pathService.EnsureUnderGalleryRoot(_pathService.GetFullPath(string.Empty));
+            return string.Equals(full, galleryRoot, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static string SanitizeAlbumName(string name)
+    {
+        if (name is null)
+            throw new ArgumentException("Album name is required.", nameof(name));
+
+        var trimmed = name.Trim();
+        if (string.IsNullOrEmpty(trimmed) || trimmed is "." or "..")
+            throw new ArgumentException("Invalid album name.", nameof(name));
+
+        if (trimmed.Contains('/') || trimmed.Contains('\\'))
+            throw new ArgumentException("Album name cannot contain path separators.", nameof(name));
+
+        if (trimmed.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
+            throw new ArgumentException("Album name contains invalid characters.", nameof(name));
+
+        return trimmed;
+    }
+
+    private static string RewritePathPrefix(string path, string oldPrefix, string newPrefix)
+    {
+        path ??= string.Empty;
+        oldPrefix ??= string.Empty;
+        newPrefix ??= string.Empty;
+
+        var pathN = path.Replace('\\', '/');
+        var oldN = oldPrefix.Replace('\\', '/');
+        var newN = newPrefix.Replace('\\', '/');
+
+        if (string.Equals(pathN, oldN, StringComparison.OrdinalIgnoreCase))
+            return newPrefix;
+
+        var oldWithSep = string.IsNullOrEmpty(oldN) ? string.Empty : oldN.TrimEnd('/') + "/";
+        if (string.IsNullOrEmpty(oldWithSep))
+        {
+            // Renaming mount root relative "" — unlikely; treat as prefix of everything
+            var combined = string.IsNullOrEmpty(newN) ? pathN : newN.TrimEnd('/') + "/" + pathN.TrimStart('/');
+            return combined.Replace('/', Path.DirectorySeparatorChar);
+        }
+
+        if (pathN.StartsWith(oldWithSep, StringComparison.OrdinalIgnoreCase))
+        {
+            var suffix = pathN.Substring(oldWithSep.Length);
+            var rewritten = string.IsNullOrEmpty(newN)
+                ? suffix
+                : newN.TrimEnd('/') + "/" + suffix;
+            return rewritten.Replace('/', Path.DirectorySeparatorChar);
+        }
+
+        return path;
+    }
+
+    private static async Task<List<int>> GetDescendantFolderIdsAsync(ApplicationDbContext context, int folderId)
+    {
+        var result = new List<int>();
+        var frontier = new Queue<int>();
+        frontier.Enqueue(folderId);
+
+        while (frontier.Count > 0)
+        {
+            var id = frontier.Dequeue();
+            var children = await context.Folders
+                .AsNoTracking()
+                .Where(f => f.ParentId == id)
+                .Select(f => f.Id)
+                .ToListAsync();
+
+            foreach (var childId in children)
+            {
+                result.Add(childId);
+                frontier.Enqueue(childId);
+            }
+        }
+
+        return result;
+    }
+
+    private async Task PurgeFolderSubtreeFromDbAsync(ApplicationDbContext context, int rootFolderId)
+    {
+        var descendantIds = await GetDescendantFolderIdsAsync(context, rootFolderId);
+        var allIds = descendantIds.Append(rootFolderId).ToList();
+
+        var photoIds = await context.Photos
+            .Where(p => allIds.Contains(p.FolderId))
+            .Select(p => p.Id)
+            .ToListAsync();
+
+        // Clear thumbnail FKs that point at photos we are about to remove (including other folders)
+        var foldersHoldingThumbs = await context.Folders
+            .Where(f => f.ThumbnailPhotoId != null && photoIds.Contains(f.ThumbnailPhotoId.Value))
+            .ToListAsync();
+        foreach (var f in foldersHoldingThumbs)
+            f.ThumbnailPhotoId = null;
+
+        // Also clear thumbnails on folders being deleted (may point outside subtree)
+        var foldersInSubtree = await context.Folders
+            .Where(f => allIds.Contains(f.Id))
+            .ToListAsync();
+        foreach (var f in foldersInSubtree)
+            f.ThumbnailPhotoId = null;
+
+        await context.SaveChangesAsync();
+
+        var covers = await context.FolderCoverPhotos
+            .Where(c => allIds.Contains(c.FolderId) || photoIds.Contains(c.PhotoId))
+            .ToListAsync();
+        context.FolderCoverPhotos.RemoveRange(covers);
+
+        var photos = await context.Photos
+            .Where(p => allIds.Contains(p.FolderId))
+            .ToListAsync();
+        context.Photos.RemoveRange(photos);
+        await context.SaveChangesAsync();
+
+        // Delete deepest folders first (ParentId Restrict)
+        var remaining = foldersInSubtree.ToDictionary(f => f.Id);
+        while (remaining.Count > 0)
+        {
+            var leaves = remaining.Values
+                .Where(f => !remaining.Values.Any(c => c.ParentId == f.Id))
+                .ToList();
+
+            if (leaves.Count == 0)
+            {
+                // Cycle safeguard — delete whatever remains
+                context.Folders.RemoveRange(remaining.Values);
+                remaining.Clear();
+                break;
+            }
+
+            foreach (var leaf in leaves)
+            {
+                context.Folders.Remove(leaf);
+                remaining.Remove(leaf.Id);
+            }
+
+            await context.SaveChangesAsync();
+        }
     }
 }
