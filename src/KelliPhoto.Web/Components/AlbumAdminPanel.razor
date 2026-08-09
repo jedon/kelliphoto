@@ -19,11 +19,11 @@
                        OnDelete="DeleteSelectedAsync" />
 
     <AlbumAdminGrid Albums="Albums"
-                    ParentFolderId="ParentFolderId"
                     Thumbnails="Thumbnails"
                     SelectedIds="_selected"
                     SelectedIdsChanged="OnSelectedChanged"
-                    OnChanged="OnChanged"
+                    Busy="_busy"
+                    OnReorderSkipped="NotifyChangedAsync"
                     OnEditAlbum="OnEditAlbum"
                     OnOpenAlbum="OnOpenAlbum"
                     OnReorder="ReorderAsync" />
@@ -100,8 +100,15 @@
 
     private async Task ReorderAsync(IReadOnlyList<int> orderedIds)
     {
-        if (_busy || orderedIds.Count == 0)
+        if (orderedIds.Count == 0)
             return;
+
+        // Defense in depth: if a reorder slips through while busy, restore rendered order.
+        if (_busy)
+        {
+            await NotifyChangedAsync();
+            return;
+        }
 
         // Ignore no-op (same order as current Albums list)
         if (Albums.Count == orderedIds.Count

@@ -9,7 +9,7 @@
     }
     else
     {
-        <div class="row" @ref="_gridContainer">
+        <div class="row" @ref="_gridContainer" data-busy="@(Busy ? "true" : "false")">
             @for (var i = 0; i < Albums.Count; i++)
             {
                 var album = Albums[i];
@@ -17,14 +17,16 @@
                 var selected = SelectedIds.Contains(album.Id);
                 var thumbnails = Thumbnails?.GetValueOrDefault(album.Id) ?? Array.Empty<Photo>();
 
-                <div class="col-md-3 col-sm-4 col-6 mb-3"
+                <div @key="album.Id"
+                     class="col-md-3 col-sm-4 col-6 mb-3"
                      data-album-id="@album.Id"
-                     draggable="true">
+                     draggable="@(!Busy)">
                     <div class="card folder-card album-admin-card @(!album.IsVisible ? "folder-card-hidden" : "") @(selected ? "album-admin-card-selected" : "")">
                         <div class="album-admin-chrome" @onclick:stopPropagation="true">
                             <label class="album-admin-check" title="Select @album.Name">
                                 <input type="checkbox"
                                        checked="@selected"
+                                       disabled="@Busy"
                                        @onchange="e => ToggleSelection(album.Id, e.Value)" />
                                 <span class="visually-hidden">Select @album.Name</span>
                             </label>
@@ -32,8 +34,10 @@
                             <button type="button"
                                     class="album-admin-drag-handle"
                                     data-album-dnd-handle
-                                    title="Drag to reorder"
+                                    title="@(Busy ? "Reorder unavailable while busy" : "Drag to reorder")"
                                     aria-label="Drag to reorder @album.Name"
+                                    aria-disabled="@(Busy ? "true" : "false")"
+                                    disabled="@Busy"
                                     tabindex="-1">
                                 <i class="bi bi-grip-vertical"></i>
                             </button>
@@ -43,6 +47,7 @@
                                    min="1"
                                    max="@Albums.Count"
                                    value="@position"
+                                   disabled="@Busy"
                                    title="Position (1-based)"
                                    aria-label="Position of @album.Name"
                                    @onchange="e => OnPositionChangedAsync(album.Id, e.Value)" />
@@ -52,6 +57,7 @@
                                 class="folder-card-edit-btn"
                                 title="Edit album"
                                 aria-label="Edit @album.Name"
+                                disabled="@Busy"
                                 @onclick:stopPropagation="true"
                                 @onclick="() => OnEditAlbum.InvokeAsync(album.Id)">
                             <i class="bi bi-pencil"></i>
@@ -113,17 +119,18 @@
 
 @code {
     [Parameter] public IReadOnlyList<Folder> Albums { get; set; } = Array.Empty<Folder>();
-    [Parameter] public int? ParentFolderId { get; set; }
     [Parameter] public IReadOnlyDictionary<int, IReadOnlyList<Photo>>? Thumbnails { get; set; }
     [Parameter] public HashSet<int> SelectedIds { get; set; } = new();
+    [Parameter] public bool Busy { get; set; }
     [Parameter] public EventCallback<HashSet<int>> SelectedIdsChanged { get; set; }
-    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback OnReorderSkipped { get; set; }
     [Parameter] public EventCallback<int> OnEditAlbum { get; set; }
     [Parameter] public EventCallback<int> OnOpenAlbum { get; set; }
     [Parameter] public EventCallback<IReadOnlyList<int>> OnReorder { get; set; }
 
     private ElementReference _gridContainer;
     private IJSObjectReference? _jsModule;
+    private IJSObjectReference? _dndController;
     private DotNetObjectReference<AlbumAdminGrid>? _dotNetRef;
     private string _albumsFingerprint = string.Empty;
     private bool _dndReady;
@@ -150,10 +157,12 @@
             if (_jsModule == null)
                 _jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/albumAdminDnD.js");
 
+            await DisposeDnDControllerAsync();
+
             _dotNetRef?.Dispose();
             _dotNetRef = DotNetObjectReference.Create(this);
 
-            await _jsModule.InvokeVoidAsync("initialize", _gridContainer, _dotNetRef);
+            _dndController = await _jsModule.InvokeAsync<IJSObjectReference>("initialize", _gridContainer, _dotNetRef);
             _dndReady = true;
         }
         catch (InvalidOperationException ex) when (
@@ -182,12 +191,30 @@
         if (orderedIds == null || orderedIds.Length == 0)
             return;
 
+        // JS may have already moved DOM nodes; restore Blazor order when busy.
+        if (Busy)
+        {
+            await RestoreOrderAsync();
+            return;
+        }
+
         if (OnReorder.HasDelegate)
             await OnReorder.InvokeAsync(orderedIds);
     }
 
+    private async Task RestoreOrderAsync()
+    {
+        if (OnReorderSkipped.HasDelegate)
+            await OnReorderSkipped.InvokeAsync();
+        else
+            StateHasChanged();
+    }
+
     private async Task ToggleSelection(int albumId, object? value)
     {
+        if (Busy)
+            return;
+
         var next = new HashSet<int>(SelectedIds);
         if (value is bool isChecked && isChecked)
             next.Add(albumId);
@@ -201,12 +228,21 @@
 
     private async Task OpenAlbumAsync(int albumId)
     {
+        if (Busy)
+            return;
+
         if (OnOpenAlbum.HasDelegate)
             await OnOpenAlbum.InvokeAsync(albumId);
     }
 
     private async Task OnPositionChangedAsync(int albumId, object? value)
     {
+        if (Busy)
+        {
+            await RestoreOrderAsync();
+            return;
+        }
+
         if (!TryParsePosition(value, out var position))
             return;
 
@@ -248,13 +284,36 @@
         }
     }
 
+    private async Task DisposeDnDControllerAsync()
+    {
+        if (_dndController == null)
+            return;
+
+        try
+        {
+            await _dndController.InvokeVoidAsync("dispose");
+            await _dndController.DisposeAsync();
+        }
+        catch (JSDisconnectedException) { }
+        catch (InvalidOperationException) { }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Error disposing album admin DnD controller");
+        }
+        finally
+        {
+            _dndController = null;
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
+        await DisposeDnDControllerAsync();
+
         if (_jsModule != null)
         {
             try
             {
-                await _jsModule.InvokeVoidAsync("dispose");
                 await _jsModule.DisposeAsync();
             }
             catch (JSDisconnectedException) { }

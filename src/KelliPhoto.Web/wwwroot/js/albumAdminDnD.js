@@ -1,26 +1,38 @@
 /**
  * HTML5 drag-and-drop helper for album admin grid.
  * Reports the new order of folder IDs to Blazor via DotNetObjectReference.
+ * Each initialize() call returns an independent controller; multiple grids can coexist.
  */
-
-let active = null;
 
 /**
  * @param {HTMLElement} container - Element whose direct children have data-album-id
  * @param {any} dotNetHelper - DotNetObjectReference with OnDragReorderAsync(int[])
+ * @returns {{ dispose: () => void }}
  */
 export function initialize(container, dotNetHelper) {
-    dispose();
-
     if (!container || !dotNetHelper) {
         console.warn('albumAdminDnD: missing container or DotNet helper');
-        return;
+        return { dispose() {} };
     }
 
+    let dragEl = null;
+    let orderBefore = null;
+    let disposed = false;
+
     const onDragStart = (e) => {
+        if (container.getAttribute('data-busy') === 'true') {
+            e.preventDefault();
+            return;
+        }
+
         const handle = e.target.closest('[data-album-dnd-handle]');
         const item = e.target.closest('[data-album-id]');
         if (!handle || !item || !container.contains(item)) {
+            e.preventDefault();
+            return;
+        }
+
+        if (handle.disabled || handle.getAttribute('aria-disabled') === 'true') {
             e.preventDefault();
             return;
         }
@@ -34,18 +46,17 @@ export function initialize(container, dotNetHelper) {
         }
 
         item.classList.add('album-dnd-dragging');
-        active.dragEl = item;
-        active.dragId = id;
-        active.orderBefore = readOrder(container);
+        dragEl = item;
+        orderBefore = readOrder(container);
     };
 
     const onDragOver = (e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
-        if (!active?.dragEl) return;
+        if (!dragEl) return;
 
         const over = e.target.closest('[data-album-id]');
-        if (!over || over === active.dragEl || !container.contains(over)) return;
+        if (!over || over === dragEl || !container.contains(over)) return;
 
         const rect = over.getBoundingClientRect();
         const midX = rect.left + rect.width / 2;
@@ -56,11 +67,11 @@ export function initialize(container, dotNetHelper) {
             : e.clientY < midY;
 
         if (insertBefore) {
-            if (over.previousElementSibling !== active.dragEl) {
-                container.insertBefore(active.dragEl, over);
+            if (over.previousElementSibling !== dragEl) {
+                container.insertBefore(dragEl, over);
             }
-        } else if (over.nextElementSibling !== active.dragEl) {
-            container.insertBefore(active.dragEl, over.nextElementSibling);
+        } else if (over.nextElementSibling !== dragEl) {
+            container.insertBefore(dragEl, over.nextElementSibling);
         }
     };
 
@@ -69,31 +80,26 @@ export function initialize(container, dotNetHelper) {
     };
 
     const onDragEnd = async () => {
-        if (active?.dragEl) {
-            active.dragEl.classList.remove('album-dnd-dragging');
+        if (dragEl) {
+            dragEl.classList.remove('album-dnd-dragging');
         }
 
         try {
             await reportOrderIfChanged();
         } finally {
-            if (active) {
-                active.dragEl = null;
-                active.dragId = null;
-                active.orderBefore = null;
-            }
+            dragEl = null;
+            orderBefore = null;
         }
     };
 
     async function reportOrderIfChanged() {
-        if (!active?.dotNetHelper) return;
-
         const ids = readOrder(container);
         const key = ids.join(',');
-        const beforeKey = (active.orderBefore ?? []).join(',');
+        const beforeKey = (orderBefore ?? []).join(',');
         if (key === beforeKey || ids.length === 0) return;
 
         try {
-            await active.dotNetHelper.invokeMethodAsync('OnDragReorderAsync', ids);
+            await dotNetHelper.invokeMethodAsync('OnDragReorderAsync', ids);
         } catch (err) {
             console.error('albumAdminDnD: failed to report order', err);
         }
@@ -104,33 +110,27 @@ export function initialize(container, dotNetHelper) {
     container.addEventListener('drop', onDrop);
     container.addEventListener('dragend', onDragEnd);
 
-    active = {
-        container,
-        dotNetHelper,
-        dragEl: null,
-        dragId: null,
-        orderBefore: null,
-        onDragStart,
-        onDragOver,
-        onDrop,
-        onDragEnd
+    return {
+        dispose() {
+            if (disposed) return;
+            disposed = true;
+
+            try {
+                container.removeEventListener('dragstart', onDragStart);
+                container.removeEventListener('dragover', onDragOver);
+                container.removeEventListener('drop', onDrop);
+                container.removeEventListener('dragend', onDragEnd);
+            } catch {
+                // container may already be detached
+            }
+
+            if (dragEl) {
+                dragEl.classList.remove('album-dnd-dragging');
+            }
+            dragEl = null;
+            orderBefore = null;
+        }
     };
-}
-
-export function dispose() {
-    if (!active) return;
-
-    const { container, onDragStart, onDragOver, onDrop, onDragEnd } = active;
-    try {
-        container.removeEventListener('dragstart', onDragStart);
-        container.removeEventListener('dragover', onDragOver);
-        container.removeEventListener('drop', onDrop);
-        container.removeEventListener('dragend', onDragEnd);
-    } catch {
-        // container may already be detached
-    }
-
-    active = null;
 }
 
 function readOrder(container) {

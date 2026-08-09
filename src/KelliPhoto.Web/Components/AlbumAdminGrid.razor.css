@@ -87,9 +87,14 @@
     cursor: grabbing;
 }
 
-.album-admin-drag-handle:hover {
+.album-admin-drag-handle:hover:not(:disabled) {
     border-color: #D4AF37;
     color: #D4AF37;
+}
+
+.album-admin-drag-handle:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
 }
 
 .album-admin-position {
