@@ -865,4 +865,30 @@ public class FolderService : IFolderService
             .ThenBy(f => f.Name)
             .ToListAsync();
     }
+
+    public Task<Folder> CreateAlbumAsync(int? parentFolderId, string name) =>
+        throw new NotImplementedException();
+
+    public Task RenameAlbumAsync(int folderId, string newName) =>
+        throw new NotImplementedException();
+
+    public Task DeleteAlbumRecursiveAsync(int folderId) =>
+        throw new NotImplementedException();
+
+    public Task ReorderSiblingsAsync(int? parentFolderId, IReadOnlyList<int> orderedFolderIds) =>
+        throw new NotImplementedException();
+
+    public Task SetFoldersVisibilityAsync(IReadOnlyList<int> folderIds, bool isVisible) =>
+        throw new NotImplementedException();
+
+    public Task<(int ChildAlbumCount, int PhotoCount)> GetAlbumSubtreeCountsAsync(int folderId) =>
+        throw new NotImplementedException();
+
+    public bool IsProtectedFolder(Folder folder)
+    {
+        if (folder.ParentId == null)
+            return true;
+
+        return string.Equals(folder.Name, "Home Page Highlights", StringComparison.OrdinalIgnoreCase);
+    }
 }
