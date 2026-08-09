@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Components.Server;
 using Microsoft.AspNetCore.Components.Web;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Options;
 using KelliPhoto.Web.Configuration;
 using KelliPhoto.Web.Data;
@@ -89,6 +90,8 @@ else
         throw new InvalidOperationException(
             "Connection string 'DefaultConnection' is missing. Set ConnectionStrings__DefaultConnection in .env or the environment (see .env.example).");
 
+    // Designer.cs files are gitignored; EF Core 9+ MigrateAsync can raise
+    // PendingModelChangesWarning even when the snapshot matches. Ignore so --migrate works in deploy.
     Action<DbContextOptionsBuilder> configureDbContext = options =>
     {
         options.UseNpgsql(connectionString, npgsqlOptions =>
@@ -98,6 +101,7 @@ else
                 maxRetryDelay: TimeSpan.FromSeconds(5),
                 errorCodesToAdd: null);
         });
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 
         if (builder.Environment.IsDevelopment())
             options.EnableSensitiveDataLogging();
@@ -112,6 +116,7 @@ else
                 maxRetryDelay: TimeSpan.FromSeconds(5),
                 errorCodesToAdd: null);
         });
+        options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
 
         if (builder.Environment.IsDevelopment())
             options.EnableSensitiveDataLogging();
