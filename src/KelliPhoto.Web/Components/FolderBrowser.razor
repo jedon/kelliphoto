@@ -109,7 +109,17 @@
         </nav>
 
         <div class="folder-list">
-            @if (ChildFolders.Any())
+            @if (IsAdmin)
+            {
+                <h5>Folders</h5>
+                <AlbumAdminPanel Albums="ChildFolders"
+                                 ParentFolderId="CurrentFolder!.Id"
+                                 Thumbnails="FolderThumbnails"
+                                 OnChanged="HandleAdminAlbumsChanged"
+                                 OnEditAlbum="OpenEditDialog"
+                                 OnOpenAlbum="NavigateToFolder" />
+            }
+            else if (ChildFolders.Any())
             {
                 <h5>Folders</h5>
                 <div class="row">
@@ -121,6 +131,17 @@
                     }
                 </div>
             }
+        </div>
+    }
+    else if (IsAdmin && !FolderId.HasValue && string.IsNullOrEmpty(errorMessage) && !isLoading)
+    {
+        <div class="folder-list">
+            <h5>Gallery Folders</h5>
+            <AlbumAdminPanel Albums="RootFolders"
+                             Thumbnails="FolderThumbnails"
+                             OnChanged="HandleAdminAlbumsChanged"
+                             OnEditAlbum="OpenEditDialog"
+                             OnOpenAlbum="NavigateToFolder" />
         </div>
     }
     else if (RootFolders.Any())
@@ -529,6 +550,12 @@
     }
 
     private async Task HandleFolderSaved()
+    {
+        await LoadFoldersAsync();
+        await OnFoldersChanged.InvokeAsync();
+    }
+
+    private async Task HandleAdminAlbumsChanged()
     {
         await LoadFoldersAsync();
         await OnFoldersChanged.InvokeAsync();

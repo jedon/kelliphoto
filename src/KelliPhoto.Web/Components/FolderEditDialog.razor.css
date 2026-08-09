@@ -82,6 +82,56 @@
     margin-bottom: 0.75rem;
 }
 
+.folder-edit-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    min-height: 1.75rem;
+    align-items: center;
+}
+
+.folder-edit-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #222;
+    color: #eee;
+    font-size: 0.8rem;
+}
+
+.folder-edit-tag-group {
+    color: #aaa;
+    font-size: 0.7rem;
+}
+
+.folder-edit-tag-remove {
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+}
+
+.folder-edit-tag-remove:hover {
+    color: #fff;
+}
+
+.folder-edit-tag-add {
+    display: grid;
+    grid-template-columns: 1fr minmax(7rem, 8.5rem) auto;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.folder-edit-tag-group-select {
+    min-width: 0;
+}
+
 .folder-edit-cover-preview {
     display: flex;
     gap: 0.35rem;
