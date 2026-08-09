@@ -164,6 +164,67 @@ namespace KelliPhoto.Web.Migrations
                     b.ToTable("Photos");
                 });
 
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoExif", b =>
+                {
+                    b.Property<int>("PhotoId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Aperture")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Artist")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("CameraMake")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CameraModel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Copyright")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("DateTaken")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExtraJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FocalLength")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double?>("GpsLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("GpsLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ImageDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("Iso")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Lens")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ShutterSpeed")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("PhotoId");
+
+                    b.ToTable("PhotoExifs");
+                });
+
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoTag", b =>
                 {
                     b.Property<int>("PhotoId")
@@ -499,6 +560,17 @@ namespace KelliPhoto.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("Folder");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoExif", b =>
+                {
+                    b.HasOne("KelliPhoto.Web.Data.Models.Photo", "Photo")
+                        .WithOne()
+                        .HasForeignKey("KelliPhoto.Web.Data.Models.PhotoExif", "PhotoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Photo");
                 });
 
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoTag", b =>

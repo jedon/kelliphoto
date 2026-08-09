@@ -19,6 +19,7 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
     public DbSet<Tag> Tags { get; set; }
     public DbSet<FolderTag> FolderTags { get; set; }
     public DbSet<PhotoTag> PhotoTags { get; set; }
+    public DbSet<PhotoExif> PhotoExifs { get; set; }
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -114,6 +115,12 @@ public class ApplicationDbContext : IdentityDbContext<IdentityUser>
             .HasOne(pt => pt.Tag)
             .WithMany(t => t.PhotoTags)
             .HasForeignKey(pt => pt.TagId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Entity<PhotoExif>()
+            .HasOne(e => e.Photo)
+            .WithOne()
+            .HasForeignKey<PhotoExif>(e => e.PhotoId)
             .OnDelete(DeleteBehavior.Cascade);
     }
 }

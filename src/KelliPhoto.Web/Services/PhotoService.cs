@@ -12,18 +12,21 @@ public class PhotoService : IPhotoService
     private readonly IPathService _pathService;
     private readonly ILogger<PhotoService> _logger;
     private readonly IHomePageCache? _homePageCache;
+    private readonly IPhotoMetadataService? _photoMetadataService;
     private static readonly string[] SupportedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif" };
 
     public PhotoService(
         IDbContextFactory<ApplicationDbContext> contextFactory,
         IPathService pathService,
         ILogger<PhotoService> logger,
-        IHomePageCache? homePageCache = null)
+        IHomePageCache? homePageCache = null,
+        IPhotoMetadataService? photoMetadataService = null)
     {
         _contextFactory = contextFactory;
         _pathService = pathService;
         _logger = logger;
         _homePageCache = homePageCache;
+        _photoMetadataService = photoMetadataService;
     }
 
     public async Task<List<Photo>> GetPhotosByFolderIdAsync(int folderId, int skip = 0, int take = 50, bool includeHidden = false)
@@ -158,6 +161,7 @@ public class PhotoService : IPhotoService
         // First check if photo exists in the CORRECT folder (FilePath + FolderId)
         var photo = await context.Photos
             .FirstOrDefaultAsync(p => p.FilePath == relativePath && p.FolderId == folderId);
+        var isNew = photo == null;
 
         if (photo == null)
         {
@@ -230,6 +234,19 @@ public class PhotoService : IPhotoService
         }
 
         await context.SaveChangesAsync();
+
+        if (isNew && _photoMetadataService is not null)
+        {
+            try
+            {
+                await _photoMetadataService.RefreshFromFileAsync(photo.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to refresh EXIF mirror for photo {PhotoId} at {FilePath}", photo.Id, relativePath);
+            }
+        }
+
         return photo;
     }
 
