@@ -16,6 +16,7 @@ public interface IPhotoService
     Task<List<Photo>> ScanPhotosInFolderBatchedAsync(int folderId, string folderPath, IScanProgressService? progressService = null, int batchSize = 50);
     Task<bool> NeedsFolderScanAsync(int folderId, string folderPath);
     Task UpdatePhotoVisibilityAsync(int photoId, bool isVisible);
+    Task SetPhotosVisibilityAsync(IReadOnlyList<int> photoIds, bool isVisible);
     Task UpdatePhotoDisplayNameAsync(int photoId, string? displayName);
     Task UpdatePhotoDescriptionAsync(int photoId, string? description);
     Task<List<Photo>> GetAllPhotosByFolderIdAsync(int folderId);

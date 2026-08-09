@@ -17,7 +17,7 @@ namespace KelliPhoto.Web.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.0")
+                .HasAnnotation("ProductVersion", "10.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -53,6 +53,9 @@ namespace KelliPhoto.Web.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
                     b.Property<int?>("ThumbnailPhotoId")
                         .HasColumnType("integer");
 
@@ -66,6 +69,42 @@ namespace KelliPhoto.Web.Migrations
                     b.HasIndex("ThumbnailPhotoId");
 
                     b.ToTable("Folders");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.FolderCoverPhoto", b =>
+                {
+                    b.Property<int>("FolderId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PhotoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("integer");
+
+                    b.HasKey("FolderId", "PhotoId");
+
+                    b.HasIndex("PhotoId");
+
+                    b.HasIndex("FolderId", "SortOrder")
+                        .IsUnique();
+
+                    b.ToTable("FolderCoverPhotos");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.FolderTag", b =>
+                {
+                    b.Property<int>("FolderId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("FolderId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("FolderTags");
                 });
 
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.Photo", b =>
@@ -123,6 +162,112 @@ namespace KelliPhoto.Web.Migrations
                     b.HasIndex("FolderId");
 
                     b.ToTable("Photos");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoExif", b =>
+                {
+                    b.Property<int>("PhotoId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Aperture")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Artist")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("CameraMake")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("CameraModel")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Copyright")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("DateTaken")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ExtraJson")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FocalLength")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<double?>("GpsLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("GpsLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("ImageDescription")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int?>("Iso")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Lens")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ShutterSpeed")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.HasKey("PhotoId");
+
+                    b.ToTable("PhotoExifs");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoTag", b =>
+                {
+                    b.Property<int>("PhotoId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TagId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("PhotoId", "TagId");
+
+                    b.HasIndex("TagId");
+
+                    b.ToTable("PhotoTags");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.Tag", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Group")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("NameNormalized")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameNormalized")
+                        .IsUnique();
+
+                    b.ToTable("Tags");
                 });
 
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.Thumbnail", b =>
@@ -368,6 +513,44 @@ namespace KelliPhoto.Web.Migrations
                     b.Navigation("ThumbnailPhoto");
                 });
 
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.FolderCoverPhoto", b =>
+                {
+                    b.HasOne("KelliPhoto.Web.Data.Models.Folder", "Folder")
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KelliPhoto.Web.Data.Models.Photo", "Photo")
+                        .WithMany()
+                        .HasForeignKey("PhotoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Folder");
+
+                    b.Navigation("Photo");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.FolderTag", b =>
+                {
+                    b.HasOne("KelliPhoto.Web.Data.Models.Folder", "Folder")
+                        .WithMany()
+                        .HasForeignKey("FolderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KelliPhoto.Web.Data.Models.Tag", "Tag")
+                        .WithMany("FolderTags")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Folder");
+
+                    b.Navigation("Tag");
+                });
+
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.Photo", b =>
                 {
                     b.HasOne("KelliPhoto.Web.Data.Models.Folder", "Folder")
@@ -377,6 +560,36 @@ namespace KelliPhoto.Web.Migrations
                         .IsRequired();
 
                     b.Navigation("Folder");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoExif", b =>
+                {
+                    b.HasOne("KelliPhoto.Web.Data.Models.Photo", "Photo")
+                        .WithOne()
+                        .HasForeignKey("KelliPhoto.Web.Data.Models.PhotoExif", "PhotoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Photo");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.PhotoTag", b =>
+                {
+                    b.HasOne("KelliPhoto.Web.Data.Models.Photo", "Photo")
+                        .WithMany()
+                        .HasForeignKey("PhotoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("KelliPhoto.Web.Data.Models.Tag", "Tag")
+                        .WithMany("PhotoTags")
+                        .HasForeignKey("TagId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Photo");
+
+                    b.Navigation("Tag");
                 });
 
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.Thumbnail", b =>
@@ -451,6 +664,13 @@ namespace KelliPhoto.Web.Migrations
             modelBuilder.Entity("KelliPhoto.Web.Data.Models.Photo", b =>
                 {
                     b.Navigation("Thumbnails");
+                });
+
+            modelBuilder.Entity("KelliPhoto.Web.Data.Models.Tag", b =>
+                {
+                    b.Navigation("FolderTags");
+
+                    b.Navigation("PhotoTags");
                 });
 #pragma warning restore 612, 618
         }

@@ -1,9 +1,11 @@
 @using KelliPhoto.Web.Data.Models
+@using KelliPhoto.Web.Services
 @using Microsoft.AspNetCore.Components.Forms
 @using SixLabors.ImageSharp
 @inject IFolderService FolderService
 @inject IPhotoService PhotoService
 @inject IPathService PathService
+@inject ITagService TagService
 @inject ILogger<FolderEditDialog> Logger
 
 @if (IsOpen && _folder != null)
@@ -46,6 +48,75 @@
                 <div class="mb-3">
                     <label class="form-label" for="folder-edit-description">Description</label>
                     <textarea id="folder-edit-description" class="form-control" rows="2" @bind="_description"></textarea>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label">Album tags</label>
+                    <div class="folder-edit-tag-list">
+                        @if (_tags.Count == 0)
+                        {
+                            <span class="folder-edit-hint text-muted small mb-0">No tags yet.</span>
+                        }
+                        else
+                        {
+                            @foreach (var tag in _tags)
+                            {
+                                <span class="folder-edit-tag-chip">
+                                    @tag.Name
+                                    @if (!string.IsNullOrEmpty(tag.Group))
+                                    {
+                                        <span class="folder-edit-tag-group">@tag.Group</span>
+                                    }
+                                    <button type="button"
+                                            class="folder-edit-tag-remove"
+                                            title="Remove @tag.Name"
+                                            aria-label="Remove @tag.Name"
+                                            disabled="@_isSaving"
+                                            @onclick="() => DetachTagAsync(tag.Id)">
+                                        &times;
+                                    </button>
+                                </span>
+                            }
+                        }
+                    </div>
+
+                    <div class="folder-edit-tag-add mt-2">
+                        <input id="folder-edit-tag-input"
+                               class="form-control"
+                               placeholder="Add tag…"
+                               autocomplete="off"
+                               list="folder-edit-tag-suggestions"
+                               value="@_tagInput"
+                               @oninput="OnTagInputChanged"
+                               @onkeydown="OnTagInputKeyDown"
+                               disabled="@_isSaving" />
+                        <datalist id="folder-edit-tag-suggestions">
+                            @foreach (var suggestion in _tagSuggestions)
+                            {
+                                <option value="@suggestion.Name"></option>
+                            }
+                        </datalist>
+                        <select class="form-select folder-edit-tag-group-select"
+                                @bind="_tagGroup"
+                                disabled="@_isSaving"
+                                title="Optional group for new tags">
+                            <option value="">No group</option>
+                            @foreach (var group in _suggestedGroups)
+                            {
+                                <option value="@group">@group</option>
+                            }
+                        </select>
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                disabled="@(_isSaving || string.IsNullOrWhiteSpace(_tagInput))"
+                                @onclick="AttachTagFromInputAsync">
+                            Add
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_tagMessage))
+                    {
+                        <p class="small mt-1 @(_tagMessage.StartsWith("Error") ? "text-danger" : "text-muted")">@_tagMessage</p>
+                    }
                 </div>
 
                 <hr class="folder-edit-divider" />
@@ -162,6 +233,7 @@
     [Parameter] public EventCallback OnSaved { get; set; }
 
     private Folder? _folder;
+    private string _originalName = "";
     private string _name = "";
     private string? _description;
     private bool _isVisible = true;
@@ -177,6 +249,13 @@
     private CoverSource _coverSource = CoverSource.Folder;
     private IBrowserFile? _pendingUpload;
     private bool _coversCleared;
+
+    private List<Tag> _tags = new();
+    private string _tagInput = "";
+    private string _tagGroup = "";
+    private List<Tag> _tagSuggestions = new();
+    private IReadOnlyList<string> _suggestedGroups = Array.Empty<string>();
+    private string? _tagMessage;
 
     private const long MaxCoverUploadBytes = 15 * 1024 * 1024;
 
@@ -206,9 +285,13 @@
         _lastLoadedFolderId = folderId;
         _errorMessage = null;
         _coverMessage = null;
+        _tagMessage = null;
         _pendingUpload = null;
         _coversCleared = false;
         _isSaving = false;
+        _tagInput = "";
+        _tagGroup = "";
+        _tagSuggestions = new();
 
         try
         {
@@ -219,6 +302,7 @@
                 return;
             }
 
+            _originalName = _folder.Name;
             _name = _folder.Name;
             _description = _folder.Description;
             _isVisible = _folder.IsVisible;
@@ -237,6 +321,9 @@
             _savedCovers = (await FolderService.GetFolderCoverPhotosAsync(folderId)).ToList();
             _selectedCoverIds = _savedCovers.Select(p => p.Id).ToList();
 
+            _tags = await TagService.GetTagsForFolderAsync(folderId);
+            _suggestedGroups = TagService.ListSuggestedGroups();
+
             _isLoadingPhotos = true;
             _folderPhotos = (await FolderService.GetPhotosInFolderForCoverPickerAsync(folderId)).ToList();
             var allPicker = (await FolderService.GetPhotosForCoverPickerAsync(folderId)).ToList();
@@ -253,6 +340,83 @@
         {
             Logger.LogError(ex, "Failed to load folder edit dialog for {FolderId}", folderId);
             _errorMessage = $"Could not load folder: {ex.Message}";
+        }
+    }
+
+    private async Task OnTagInputChanged(ChangeEventArgs e)
+    {
+        _tagInput = e.Value?.ToString() ?? "";
+        _tagMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_tagInput))
+        {
+            _tagSuggestions = new();
+            return;
+        }
+
+        try
+        {
+            _tagSuggestions = await TagService.AutocompleteAsync(_tagInput.Trim(), take: 12);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Tag autocomplete failed");
+            _tagSuggestions = new();
+        }
+    }
+
+    private async Task OnTagInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await AttachTagFromInputAsync();
+        }
+    }
+
+    private async Task AttachTagFromInputAsync()
+    {
+        if (!FolderId.HasValue || string.IsNullOrWhiteSpace(_tagInput))
+        {
+            return;
+        }
+
+        var name = _tagInput.Trim();
+        _tagMessage = null;
+
+        try
+        {
+            var group = string.IsNullOrWhiteSpace(_tagGroup) ? null : _tagGroup.Trim();
+            var tag = await TagService.EnsureTagAsync(name, group);
+            await TagService.AttachToFolderAsync(FolderId.Value, tag.Id);
+            _tags = await TagService.GetTagsForFolderAsync(FolderId.Value);
+            _tagInput = "";
+            _tagSuggestions = new();
+            _tagMessage = $"Added “{tag.Name}”.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to attach tag to folder {FolderId}", FolderId);
+            _tagMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task DetachTagAsync(int tagId)
+    {
+        if (!FolderId.HasValue)
+        {
+            return;
+        }
+
+        _tagMessage = null;
+        try
+        {
+            await TagService.DetachFromFolderAsync(FolderId.Value, tagId);
+            _tags = await TagService.GetTagsForFolderAsync(FolderId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to detach tag {TagId} from folder {FolderId}", tagId, FolderId);
+            _tagMessage = $"Error: {ex.Message}";
         }
     }
 
@@ -299,12 +463,33 @@
         _isSaving = true;
         _errorMessage = null;
         _coverMessage = null;
+        var renameSucceeded = false;
 
         try
         {
+            var trimmedName = (_name ?? "").Trim();
+            if (string.IsNullOrEmpty(trimmedName))
+            {
+                throw new InvalidOperationException("Folder name is required.");
+            }
+
+            var nameChanged = !string.Equals(trimmedName, _originalName, StringComparison.Ordinal);
+            if (nameChanged)
+            {
+                await FolderService.RenameAlbumAsync(FolderId.Value, trimmedName);
+                renameSucceeded = true;
+                // Reload so subsequent settings update uses disk-sanitized name.
+                var renamed = await FolderService.GetFolderByIdAsync(FolderId.Value)
+                    ?? throw new InvalidOperationException("Folder not found after rename.");
+                trimmedName = renamed.Name;
+                _originalName = renamed.Name;
+                _name = renamed.Name;
+                _folder = renamed;
+            }
+
             await FolderService.UpdateFolderSettingsAsync(
                 FolderId.Value,
-                _name,
+                trimmedName,
                 _positionIndex,
                 _isVisible,
                 _description);
@@ -330,6 +515,18 @@
         {
             Logger.LogError(ex, "Error saving folder {FolderId}", FolderId);
             _errorMessage = ex.Message;
+            // Rename already persisted — notify parents so tree/browser names refresh while keeping the error visible.
+            if (renameSucceeded && OnSaved.HasDelegate)
+            {
+                try
+                {
+                    await OnSaved.InvokeAsync();
+                }
+                catch (Exception notifyEx)
+                {
+                    Logger.LogWarning(notifyEx, "OnSaved after partial rename failure for folder {FolderId}", FolderId);
+                }
+            }
         }
         finally
         {

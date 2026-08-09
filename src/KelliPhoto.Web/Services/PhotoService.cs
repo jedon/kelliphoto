@@ -12,18 +12,21 @@ public class PhotoService : IPhotoService
     private readonly IPathService _pathService;
     private readonly ILogger<PhotoService> _logger;
     private readonly IHomePageCache? _homePageCache;
+    private readonly IPhotoMetadataService? _photoMetadataService;
     private static readonly string[] SupportedExtensions = { ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp", ".tiff", ".tif" };
 
     public PhotoService(
         IDbContextFactory<ApplicationDbContext> contextFactory,
         IPathService pathService,
         ILogger<PhotoService> logger,
-        IHomePageCache? homePageCache = null)
+        IHomePageCache? homePageCache = null,
+        IPhotoMetadataService? photoMetadataService = null)
     {
         _contextFactory = contextFactory;
         _pathService = pathService;
         _logger = logger;
         _homePageCache = homePageCache;
+        _photoMetadataService = photoMetadataService;
     }
 
     public async Task<List<Photo>> GetPhotosByFolderIdAsync(int folderId, int skip = 0, int take = 50, bool includeHidden = false)
@@ -158,6 +161,7 @@ public class PhotoService : IPhotoService
         // First check if photo exists in the CORRECT folder (FilePath + FolderId)
         var photo = await context.Photos
             .FirstOrDefaultAsync(p => p.FilePath == relativePath && p.FolderId == folderId);
+        var isNew = photo == null;
 
         if (photo == null)
         {
@@ -230,6 +234,19 @@ public class PhotoService : IPhotoService
         }
 
         await context.SaveChangesAsync();
+
+        if (isNew && _photoMetadataService is not null)
+        {
+            try
+            {
+                await _photoMetadataService.RefreshFromFileAsync(photo.Id);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to refresh EXIF mirror for photo {PhotoId} at {FilePath}", photo.Id, relativePath);
+            }
+        }
+
         return photo;
     }
 
@@ -502,6 +519,24 @@ public class PhotoService : IPhotoService
                     
                     _logger.LogDebug("Saved batch of {NewCount} new and {UpdatedCount} updated photos in {ElapsedMs}ms", 
                         newPhotos.Count, updatedPhotos.Count, saveStopwatch.ElapsedMilliseconds);
+
+                    // Best-effort EXIF mirror population for newly inserted photos
+                    if (_photoMetadataService is not null && newPhotos.Count > 0)
+                    {
+                        foreach (var newPhoto in newPhotos)
+                        {
+                            try
+                            {
+                                await _photoMetadataService.RefreshFromFileAsync(newPhoto.Id);
+                            }
+                            catch (Exception ex)
+                            {
+                                _logger.LogWarning(ex,
+                                    "Failed to refresh EXIF mirror for photo {PhotoId} at {FilePath}",
+                                    newPhoto.Id, newPhoto.FilePath);
+                            }
+                        }
+                    }
                     
                     // Clear batch lists
                     newPhotos.Clear();
@@ -644,6 +679,26 @@ public class PhotoService : IPhotoService
             _logger.LogError(ex, "Error checking folder name for cache invalidation in UpdatePhotoVisibilityAsync. Falling back to unconditional invalidation.");
             _homePageCache?.Invalidate();
         }
+    }
+
+    public async Task SetPhotosVisibilityAsync(IReadOnlyList<int> photoIds, bool isVisible)
+    {
+        if (photoIds is null || photoIds.Count == 0)
+            return;
+
+        await using var context = await _contextFactory.CreateDbContextAsync();
+        var distinctIds = photoIds.Distinct().ToList();
+        var photos = await context.Photos
+            .Where(p => distinctIds.Contains(p.Id))
+            .ToListAsync();
+
+        foreach (var photo in photos)
+        {
+            photo.IsVisible = isVisible;
+        }
+
+        await context.SaveChangesAsync();
+        _homePageCache?.Invalidate();
     }
 
     public async Task UpdatePhotoDisplayNameAsync(int photoId, string? displayName)

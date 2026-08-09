@@ -41,7 +41,10 @@
                 <div class="col-lg-4 col-md-5">
                     <h3 class="h5">Folders</h3>
                     <p class="text-muted small">Expand nodes to load children. Select a folder to edit settings and photos.</p>
-                    <AdminFolderTree SelectedFolderId="selectedFolderId" SelectedFolderIdChanged="OnFolderSelectedAsync" IncludeHidden="true" />
+                    <AdminFolderTree @ref="_folderTree"
+                                     SelectedFolderId="selectedFolderId"
+                                     SelectedFolderIdChanged="OnFolderSelectedAsync"
+                                     IncludeHidden="true" />
                 </div>
                 <div class="col-lg-8 col-md-7">
                     @if (selectedFolder == null)
@@ -50,9 +53,25 @@
                     }
                     else
                     {
+                        <div class="mb-4">
+                            <h3 class="h5">Child albums</h3>
+                            <p class="text-muted small">Create, reorder, show/hide, tag, or delete albums under @selectedFolder.Name.</p>
+                            <AlbumAdminPanel Albums="childAlbums"
+                                             ParentFolderId="selectedFolderId"
+                                             Thumbnails="childThumbnails"
+                                             OnChanged="ReloadChildAlbumsAsync"
+                                             OnEditAlbum="OpenEditDialog"
+                                             OnOpenAlbum="OnFolderSelectedAsync" />
+                        </div>
+
                         <div class="card admin-detail-card">
-                            <div class="card-header">
+                            <div class="card-header d-flex align-items-center justify-content-between gap-2">
                                 <h5 class="mb-0">@selectedFolder.Name</h5>
+                                <button type="button"
+                                        class="btn btn-sm btn-outline-secondary"
+                                        @onclick="() => OpenEditDialog(selectedFolder.Id)">
+                                    Edit album
+                                </button>
                             </div>
                             <div class="card-body">
                                 <div class="mb-3">
@@ -232,11 +251,18 @@
     </div>
 </div>
 
+<FolderEditDialog IsOpen="_editDialogOpen"
+                  FolderId="_editingFolderId"
+                  OnClose="CloseEditDialog"
+                  OnSaved="HandleFolderEditSaved" />
+
 @code {
     private string activeTab = "gallery";
     private int selectedFolderId;
     private Folder? selectedFolder;
     private string physicalPath = "";
+    private List<Folder> childAlbums = new();
+    private Dictionary<int, IReadOnlyList<Photo>> childThumbnails = new();
     private List<Photo> folderPhotos = new();
     private List<Photo> coverPhotos = new();
     private List<Photo> coverPickerPhotos = new();
@@ -257,6 +283,9 @@
     private string? uploadMessage;
     private string? scanMessage;
     private IBrowserFile[]? selectedFiles;
+    private bool _editDialogOpen;
+    private int? _editingFolderId;
+    private AdminFolderTree? _folderTree;
 
     private void SetActiveTab(string tab) => activeTab = tab;
 
@@ -270,6 +299,8 @@
         photoSkip = 0;
         folderPhotos.Clear();
         coverPickerPhotos.Clear();
+        childAlbums.Clear();
+        childThumbnails.Clear();
 
         if (folderId <= 0)
         {
@@ -292,12 +323,78 @@
             selectedCoverPhotoIds = coverPhotos.Select(p => p.Id).ToList();
             hadSavedCovers = coverPhotos.Count > 0;
             coversCleared = false;
+            await LoadChildAlbumsOnlyAsync();
             await LoadCoverPickerPhotosAsync();
             await LoadPhotosPageAsync(reset: true);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Error loading folder {FolderId}", folderId);
+        }
+    }
+
+    private async Task ReloadChildAlbumsAsync()
+    {
+        await LoadChildAlbumsOnlyAsync();
+        if (_folderTree is not null)
+            await _folderTree.ReloadAsync();
+    }
+
+    private async Task LoadChildAlbumsOnlyAsync()
+    {
+        if (selectedFolderId <= 0)
+        {
+            childAlbums = new();
+            childThumbnails = new();
+            return;
+        }
+
+        try
+        {
+            childAlbums = await FolderService.GetChildFoldersAsync(selectedFolderId, includeHidden: true) ?? new();
+            childThumbnails = new Dictionary<int, IReadOnlyList<Photo>>();
+            foreach (var folder in childAlbums)
+            {
+                try
+                {
+                    childThumbnails[folder.Id] = await FolderService.GetFolderThumbnailPhotosAsync(folder.Id);
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Failed to load thumbnail for child folder {FolderId}", folder.Id);
+                    childThumbnails[folder.Id] = Array.Empty<Photo>();
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading child albums for folder {FolderId}", selectedFolderId);
+            childAlbums = new();
+            childThumbnails = new();
+        }
+    }
+
+    private void OpenEditDialog(int folderId)
+    {
+        _editingFolderId = folderId;
+        _editDialogOpen = true;
+    }
+
+    private Task CloseEditDialog()
+    {
+        _editDialogOpen = false;
+        _editingFolderId = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task HandleFolderEditSaved()
+    {
+        if (_folderTree is not null)
+            await _folderTree.ReloadAsync();
+
+        if (selectedFolderId > 0)
+        {
+            await OnFolderSelectedAsync(selectedFolderId);
         }
     }
 

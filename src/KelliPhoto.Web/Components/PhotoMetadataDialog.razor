@@ -1,0 +1,485 @@
+@using KelliPhoto.Web.Data.Models
+@using KelliPhoto.Web.Services
+@using Microsoft.AspNetCore.Components.Forms
+@inject IPhotoMetadataService PhotoMetadataService
+@inject ITagService TagService
+@inject ILogger<PhotoMetadataDialog> Logger
+
+@if (IsOpen && PhotoId.HasValue)
+{
+    <div class="photo-meta-backdrop" @onclick="Close">
+        <div class="photo-meta-dialog" role="dialog" aria-modal="true" aria-labelledby="photo-meta-title" @onclick:stopPropagation="true">
+            <header class="photo-meta-header">
+                <h5 id="photo-meta-title" class="photo-meta-title">Photo metadata</h5>
+                <button type="button" class="photo-meta-close" aria-label="Close" @onclick="Close">&times;</button>
+            </header>
+
+            <div class="photo-meta-body">
+                @if (!string.IsNullOrEmpty(_errorMessage))
+                {
+                    <div class="alert alert-danger py-2">@_errorMessage</div>
+                }
+
+                @if (_isLoading)
+                {
+                    <p class="text-muted small">Loading…</p>
+                }
+                else
+                {
+                    <div class="photo-meta-preview mb-3">
+                        <img src="/api/images/thumbnail/@PhotoId.Value?size=200" alt="Photo preview" loading="lazy" />
+                        <button type="button"
+                                class="btn btn-sm btn-outline-secondary"
+                                disabled="@(_isSaving || _isRefreshing)"
+                                @onclick="RefreshFromFileAsync">
+                            @(_isRefreshing ? "Refreshing…" : "Refresh from file")
+                        </button>
+                    </div>
+
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <label class="form-label" for="photo-meta-date">Date taken</label>
+                            <InputDate id="photo-meta-date" class="form-control" Type="InputDateType.DateTimeLocal" @bind-Value="_dateTaken" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="photo-meta-make">Camera make</label>
+                            <input id="photo-meta-make" class="form-control" @bind="_cameraMake" maxlength="200" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="photo-meta-model">Camera model</label>
+                            <input id="photo-meta-model" class="form-control" @bind="_cameraModel" maxlength="200" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="photo-meta-lens">Lens</label>
+                            <input id="photo-meta-lens" class="form-control" @bind="_lens" maxlength="200" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="photo-meta-focal">Focal length</label>
+                            <input id="photo-meta-focal" class="form-control" @bind="_focalLength" maxlength="100" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="photo-meta-aperture">Aperture</label>
+                            <input id="photo-meta-aperture" class="form-control" @bind="_aperture" maxlength="100" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="photo-meta-shutter">Shutter speed</label>
+                            <input id="photo-meta-shutter" class="form-control" @bind="_shutterSpeed" maxlength="100" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="photo-meta-iso">ISO</label>
+                            <input id="photo-meta-iso" class="form-control" type="number" @bind="_iso" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="photo-meta-lat">GPS latitude</label>
+                            <input id="photo-meta-lat" class="form-control" type="number" step="any" @bind="_gpsLatitude" />
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label" for="photo-meta-lng">GPS longitude</label>
+                            <input id="photo-meta-lng" class="form-control" type="number" step="any" @bind="_gpsLongitude" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="photo-meta-artist">Artist</label>
+                            <input id="photo-meta-artist" class="form-control" @bind="_artist" maxlength="500" />
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="photo-meta-copyright">Copyright</label>
+                            <input id="photo-meta-copyright" class="form-control" @bind="_copyright" maxlength="500" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label" for="photo-meta-desc">Image description</label>
+                            <textarea id="photo-meta-desc" class="form-control" rows="2" @bind="_imageDescription" maxlength="2000"></textarea>
+                        </div>
+                    </div>
+
+                    <hr class="photo-meta-divider" />
+
+                    <h6 class="photo-meta-section-title">Photo tags</h6>
+                    <div class="photo-meta-tag-list">
+                        @if (_tags.Count == 0)
+                        {
+                            <span class="photo-meta-hint text-muted small mb-0">No tags yet.</span>
+                        }
+                        else
+                        {
+                            @foreach (var tag in _tags)
+                            {
+                                <span class="photo-meta-tag-chip">
+                                    @tag.Name
+                                    @if (!string.IsNullOrEmpty(tag.Group))
+                                    {
+                                        <span class="photo-meta-tag-group">@tag.Group</span>
+                                    }
+                                    <button type="button"
+                                            class="photo-meta-tag-remove"
+                                            title="Remove @tag.Name"
+                                            aria-label="Remove @tag.Name"
+                                            disabled="@_isSaving"
+                                            @onclick="() => DetachTagAsync(tag.Id)">
+                                        &times;
+                                    </button>
+                                </span>
+                            }
+                        }
+                    </div>
+
+                    <div class="photo-meta-tag-add mt-2">
+                        <input id="photo-meta-tag-input"
+                               class="form-control"
+                               placeholder="Add tag…"
+                               autocomplete="off"
+                               list="photo-meta-tag-suggestions"
+                               value="@_tagInput"
+                               @oninput="OnTagInputChanged"
+                               @onkeydown="OnTagInputKeyDown"
+                               disabled="@_isSaving" />
+                        <datalist id="photo-meta-tag-suggestions">
+                            @foreach (var suggestion in _tagSuggestions)
+                            {
+                                <option value="@suggestion.Name"></option>
+                            }
+                        </datalist>
+                        <select class="form-select photo-meta-tag-group-select"
+                                @bind="_tagGroup"
+                                disabled="@_isSaving"
+                                title="Optional group for new tags">
+                            <option value="">No group</option>
+                            @foreach (var group in _suggestedGroups)
+                            {
+                                <option value="@group">@group</option>
+                            }
+                        </select>
+                        <button type="button"
+                                class="btn btn-outline-secondary"
+                                disabled="@(_isSaving || string.IsNullOrWhiteSpace(_tagInput))"
+                                @onclick="AttachTagFromInputAsync">
+                            Add
+                        </button>
+                    </div>
+                    @if (!string.IsNullOrEmpty(_tagMessage))
+                    {
+                        <p class="small mt-1 @(_tagMessage.StartsWith("Error") ? "text-danger" : "text-muted")">@_tagMessage</p>
+                    }
+                }
+            </div>
+
+            <footer class="photo-meta-footer">
+                <button type="button" class="btn btn-outline-secondary" @onclick="Close" disabled="@_isSaving">Cancel</button>
+                <button type="button" class="btn btn-primary" @onclick="SaveAsync" disabled="@(!CanSave)">
+                    @(_isSaving ? "Saving…" : "Save")
+                </button>
+            </footer>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool IsOpen { get; set; }
+    [Parameter] public int? PhotoId { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public EventCallback OnSaved { get; set; }
+
+    private bool _isLoading;
+    private bool _isSaving;
+    private bool _isRefreshing;
+    private bool _mirrorReady;
+    private string? _errorMessage;
+    private int? _lastLoadedPhotoId;
+    private int? _failedLoadPhotoId;
+
+    private bool CanSave =>
+        !_isLoading && !_isSaving && !_isRefreshing && _mirrorReady && string.IsNullOrEmpty(_errorMessage);
+
+    private DateTime? _dateTaken;
+    private string? _cameraMake;
+    private string? _cameraModel;
+    private string? _lens;
+    private string? _focalLength;
+    private string? _aperture;
+    private string? _shutterSpeed;
+    private int? _iso;
+    private double? _gpsLatitude;
+    private double? _gpsLongitude;
+    private string? _artist;
+    private string? _copyright;
+    private string? _imageDescription;
+
+    private List<Tag> _tags = new();
+    private string _tagInput = "";
+    private string _tagGroup = "";
+    private List<Tag> _tagSuggestions = new();
+    private IReadOnlyList<string> _suggestedGroups = Array.Empty<string>();
+    private string? _tagMessage;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!IsOpen || !PhotoId.HasValue)
+            return;
+
+        if (_lastLoadedPhotoId == PhotoId)
+            return;
+
+        // Avoid retry loops while the dialog stays open after a failed load.
+        // Close() clears _failedLoadPhotoId so reopen can retry.
+        if (_failedLoadPhotoId == PhotoId)
+            return;
+
+        await LoadAsync(PhotoId.Value);
+    }
+
+    private async Task LoadAsync(int photoId)
+    {
+        _errorMessage = null;
+        _tagMessage = null;
+        _tagInput = "";
+        _tagGroup = "";
+        _tagSuggestions = new();
+        _mirrorReady = false;
+        _isLoading = true;
+
+        try
+        {
+            var exif = await PhotoMetadataService.GetAsync(photoId);
+            if (exif is null)
+            {
+                await PhotoMetadataService.RefreshFromFileAsync(photoId);
+                exif = await PhotoMetadataService.GetAsync(photoId);
+            }
+
+            if (exif is null)
+            {
+                _errorMessage = "Could not load EXIF metadata for this photo.";
+                ClearForm();
+                _failedLoadPhotoId = photoId;
+                _tags = await TagService.GetTagsForPhotoAsync(photoId);
+                _suggestedGroups = TagService.ListSuggestedGroups();
+                return;
+            }
+
+            ApplyExifToForm(exif);
+            _tags = await TagService.GetTagsForPhotoAsync(photoId);
+            _suggestedGroups = TagService.ListSuggestedGroups();
+            _mirrorReady = true;
+            _failedLoadPhotoId = null;
+            _lastLoadedPhotoId = photoId;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load photo metadata for {PhotoId}", photoId);
+            _errorMessage = $"Could not load metadata: {ex.Message}";
+            ClearForm();
+            _mirrorReady = false;
+            _failedLoadPhotoId = photoId;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    private void ApplyExifToForm(PhotoExif? exif)
+    {
+        if (exif is null)
+        {
+            ClearForm();
+            return;
+        }
+
+        _dateTaken = exif.DateTaken.HasValue
+            ? DateTime.SpecifyKind(exif.DateTaken.Value.ToLocalTime(), DateTimeKind.Unspecified)
+            : null;
+        _cameraMake = exif.CameraMake;
+        _cameraModel = exif.CameraModel;
+        _lens = exif.Lens;
+        _focalLength = exif.FocalLength;
+        _aperture = exif.Aperture;
+        _shutterSpeed = exif.ShutterSpeed;
+        _iso = exif.Iso;
+        _gpsLatitude = exif.GpsLatitude;
+        _gpsLongitude = exif.GpsLongitude;
+        _artist = exif.Artist;
+        _copyright = exif.Copyright;
+        _imageDescription = exif.ImageDescription;
+    }
+
+    private void ClearForm()
+    {
+        _dateTaken = null;
+        _cameraMake = null;
+        _cameraModel = null;
+        _lens = null;
+        _focalLength = null;
+        _aperture = null;
+        _shutterSpeed = null;
+        _iso = null;
+        _gpsLatitude = null;
+        _gpsLongitude = null;
+        _artist = null;
+        _copyright = null;
+        _imageDescription = null;
+    }
+
+    private async Task RefreshFromFileAsync()
+    {
+        if (!PhotoId.HasValue)
+            return;
+
+        _isRefreshing = true;
+        _errorMessage = null;
+        try
+        {
+            await PhotoMetadataService.RefreshFromFileAsync(PhotoId.Value);
+            var exif = await PhotoMetadataService.GetAsync(PhotoId.Value);
+            if (exif is null)
+            {
+                _errorMessage = "Could not load EXIF metadata for this photo.";
+                _mirrorReady = false;
+                return;
+            }
+
+            ApplyExifToForm(exif);
+            _mirrorReady = true;
+            _failedLoadPhotoId = null;
+            _lastLoadedPhotoId = PhotoId.Value;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "RefreshFromFileAsync failed for photo {PhotoId}", PhotoId);
+            _errorMessage = ex.Message;
+            _mirrorReady = false;
+        }
+        finally
+        {
+            _isRefreshing = false;
+        }
+    }
+
+    private async Task OnTagInputChanged(ChangeEventArgs e)
+    {
+        _tagInput = e.Value?.ToString() ?? "";
+        _tagMessage = null;
+
+        if (string.IsNullOrWhiteSpace(_tagInput))
+        {
+            _tagSuggestions = new();
+            return;
+        }
+
+        try
+        {
+            _tagSuggestions = await TagService.AutocompleteAsync(_tagInput.Trim(), take: 12);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Tag autocomplete failed");
+            _tagSuggestions = new();
+        }
+    }
+
+    private async Task OnTagInputKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+            await AttachTagFromInputAsync();
+    }
+
+    private async Task AttachTagFromInputAsync()
+    {
+        if (!PhotoId.HasValue || string.IsNullOrWhiteSpace(_tagInput))
+            return;
+
+        var name = _tagInput.Trim();
+        _tagMessage = null;
+
+        try
+        {
+            var group = string.IsNullOrWhiteSpace(_tagGroup) ? null : _tagGroup.Trim();
+            var tag = await TagService.EnsureTagAsync(name, group);
+            await TagService.AttachToPhotoAsync(PhotoId.Value, tag.Id);
+            _tags = await TagService.GetTagsForPhotoAsync(PhotoId.Value);
+            _tagInput = "";
+            _tagSuggestions = new();
+            _tagMessage = $"Added “{tag.Name}”.";
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to attach tag to photo {PhotoId}", PhotoId);
+            _tagMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task DetachTagAsync(int tagId)
+    {
+        if (!PhotoId.HasValue)
+            return;
+
+        _tagMessage = null;
+        try
+        {
+            await TagService.DetachFromPhotoAsync(PhotoId.Value, tagId);
+            _tags = await TagService.GetTagsForPhotoAsync(PhotoId.Value);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to detach tag {TagId} from photo {PhotoId}", tagId, PhotoId);
+            _tagMessage = $"Error: {ex.Message}";
+        }
+    }
+
+    private async Task SaveAsync()
+    {
+        if (!PhotoId.HasValue || !CanSave)
+            return;
+
+        _isSaving = true;
+        _errorMessage = null;
+
+        try
+        {
+            DateTime? dateTaken = null;
+            if (_dateTaken.HasValue)
+            {
+                dateTaken = DateTime.SpecifyKind(_dateTaken.Value, DateTimeKind.Local).ToUniversalTime();
+            }
+
+            var dto = new PhotoExifUpdate
+            {
+                DateTaken = dateTaken,
+                CameraMake = NullIfWhiteSpace(_cameraMake),
+                CameraModel = NullIfWhiteSpace(_cameraModel),
+                Lens = NullIfWhiteSpace(_lens),
+                FocalLength = NullIfWhiteSpace(_focalLength),
+                Aperture = NullIfWhiteSpace(_aperture),
+                ShutterSpeed = NullIfWhiteSpace(_shutterSpeed),
+                Iso = _iso,
+                GpsLatitude = _gpsLatitude,
+                GpsLongitude = _gpsLongitude,
+                Artist = NullIfWhiteSpace(_artist),
+                Copyright = NullIfWhiteSpace(_copyright),
+                ImageDescription = NullIfWhiteSpace(_imageDescription)
+            };
+
+            await PhotoMetadataService.UpdateAsync(PhotoId.Value, dto);
+            await OnSaved.InvokeAsync();
+            await Close();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error saving photo metadata for {PhotoId}", PhotoId);
+            _errorMessage = ex.Message;
+        }
+        finally
+        {
+            _isSaving = false;
+        }
+    }
+
+    private static string? NullIfWhiteSpace(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
+
+    private async Task Close()
+    {
+        _lastLoadedPhotoId = null;
+        _failedLoadPhotoId = null;
+        _mirrorReady = false;
+        await OnClose.InvokeAsync();
+    }
+}

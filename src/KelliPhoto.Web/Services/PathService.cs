@@ -7,6 +7,12 @@ public interface IPathService
     string NormalizePath(string path);
 
     /// <summary>
+    /// Ensures <paramref name="fullPath"/> resolves under the configured gallery root.
+    /// Returns the fully resolved path, or throws if it escapes the gallery.
+    /// </summary>
+    string EnsureUnderGalleryRoot(string fullPath);
+
+    /// <summary>
     /// Resolves a stored DB path to a file that exists on disk.
     /// For legacy UNC rows, tries both gallery root and LegacyWindowsLocalMountPath with the same relative tail.
     /// If no exact path exists, walks the tree using <c>GallerySettings:FolderNameAliases</c>, then case-insensitive and fuzzy names.
@@ -310,6 +316,19 @@ public class PathService : IPathService
     /// <summary>Lowercase letters and digits only — ignores spaces, punctuation, and case.</summary>
     private static string NormalizeFuzzyKey(string s) =>
         new string(s.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    public string EnsureUnderGalleryRoot(string fullPath)
+    {
+        var root = Path.GetFullPath(GalleryBasePath)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var candidate = Path.GetFullPath(fullPath);
+        if (candidate.Equals(root, StringComparison.OrdinalIgnoreCase))
+            return candidate;
+        var prefix = root + Path.DirectorySeparatorChar;
+        if (!candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException($"Path is outside gallery root: {fullPath}");
+        return candidate;
+    }
 
     public string NormalizePath(string path)
     {

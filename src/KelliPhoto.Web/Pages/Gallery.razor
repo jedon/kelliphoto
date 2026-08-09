@@ -29,7 +29,9 @@
             </button>
         </div>
 
-        <PhotoGrid FolderId="DisplayFolderId.Value" UseHomePageCache="@(!FolderId.HasValue)" />
+        <PhotoGrid FolderId="DisplayFolderId.Value"
+                   UseHomePageCache="@(!FolderId.HasValue)"
+                   IsAdmin="isAdmin" />
 
         @if (isSlideshowOpen)
         {

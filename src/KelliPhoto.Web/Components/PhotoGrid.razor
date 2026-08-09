@@ -2,6 +2,7 @@
 @using KelliPhoto.Web.Models
 @using Microsoft.JSInterop
 @inject IPhotoService PhotoService
+@inject ITagService TagService
 @inject IScanProgressService ScanProgressService
 @inject NavigationManager Navigation
 @inject ILogger<PhotoGrid> Logger
@@ -10,14 +11,101 @@
 @implements IAsyncDisposable
 
 <div class="photo-grid-container">
+    @if (IsAdmin && Photos.Any())
+    {
+        <div class="photo-admin-toolbar gallery-edit-toolbar">
+            <button type="button"
+                    class="btn btn-sm btn-outline-light"
+                    disabled="@_busy || Photos.Count == 0"
+                    @onclick="SelectAllPhotos">
+                Select all
+            </button>
+            <button type="button"
+                    class="btn btn-sm btn-outline-light"
+                    disabled="@_busy || _selected.Count == 0"
+                    @onclick="ClearSelection">
+                None
+            </button>
+
+            @if (_selected.Count > 0)
+            {
+                <span class="photo-admin-selection-count">@_selected.Count selected</span>
+                <div class="photo-admin-toolbar-sep" aria-hidden="true"></div>
+
+                <button type="button"
+                        class="btn btn-sm btn-outline-light"
+                        disabled="@_busy"
+                        title="Show selected photos"
+                        @onclick="() => SetVisibilityAsync(true)">
+                    <i class="bi bi-eye"></i> Show
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-light"
+                        disabled="@_busy"
+                        title="Hide selected photos"
+                        @onclick="() => SetVisibilityAsync(false)">
+                    <i class="bi bi-eye-slash"></i> Hide
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-light"
+                        disabled="@_busy"
+                        title="Add tags to selected"
+                        @onclick="() => BulkTagsAsync(true)">
+                    <i class="bi bi-tag"></i> Add tags
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-light"
+                        disabled="@_busy"
+                        title="Remove tags from selected"
+                        @onclick="() => BulkTagsAsync(false)">
+                    <i class="bi bi-tag-fill"></i> Remove tags
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-warning"
+                        disabled="@_busy || MetadataTargetPhotoId is null"
+                        title="Requires exactly one selected photo"
+                        @onclick="OpenMetadataDialog">
+                    <i class="bi bi-info-circle"></i> Metadata
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-link photo-admin-clear-link"
+                        disabled="@_busy"
+                        @onclick="ClearSelection">
+                    Clear selection
+                </button>
+            }
+
+            @if (!string.IsNullOrEmpty(_statusMessage))
+            {
+                <span class="photo-admin-status @(_statusIsError ? "is-error" : "is-info")">@_statusMessage</span>
+            }
+        </div>
+    }
+
     @if (Photos.Any())
     {
         <div class="photo-masonry">
             @foreach (var photo in Photos)
             {
                 var isCover = IsCoverSelected(photo.Id);
-                <div class="photo-item @(EditMode ? "photo-item-edit" : "") @(isCover ? "photo-cover-selected" : "") @(!photo.IsVisible ? "photo-item-hidden" : "")"
+                var isSelected = IsAdmin && _selected.Contains(photo.Id);
+                <div class="photo-item @(EditMode ? "photo-item-edit" : "") @(isCover ? "photo-cover-selected" : "") @(isSelected ? "photo-item-selected" : "") @(!photo.IsVisible ? "photo-item-hidden" : "")"
                      @onclick="() => HandlePhotoClick(photo)">
+                    @if (IsAdmin)
+                    {
+                        <div class="photo-admin-check" @onclick:stopPropagation="true">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   checked="@isSelected"
+                                   @onchange="(e) => TogglePhotoSelected(photo.Id, e.Value)"
+                                   title="Select photo"
+                                   aria-label="Select @photo.Filename" />
+                        </div>
+                        @if (!photo.IsVisible)
+                        {
+                            <span class="photo-hidden-badge">Hidden</span>
+                        }
+                    }
                     @if (EditMode)
                     {
                         <div class="photo-edit-overlay" @onclick:stopPropagation="true">
@@ -32,7 +120,7 @@
                                 @(isCover ? "Cover ✓" : "Cover")
                             </button>
                         </div>
-                        @if (!photo.IsVisible)
+                        @if (!photo.IsVisible && !IsAdmin)
                         {
                             <span class="photo-hidden-badge">Hidden</span>
                         }
@@ -88,9 +176,18 @@
     }
 </div>
 
+@if (IsAdmin)
+{
+    <PhotoMetadataDialog IsOpen="_metadataDialogOpen"
+                         PhotoId="_metadataPhotoId"
+                         OnClose="CloseMetadataDialog"
+                         OnSaved="HandleMetadataSaved" />
+}
+
 @code {
     [Parameter] public int FolderId { get; set; }
     [Parameter] public bool UseHomePageCache { get; set; }
+    [Parameter] public bool IsAdmin { get; set; }
     [Parameter] public bool EditMode { get; set; }
     [Parameter] public IReadOnlyList<int> SelectedCoverPhotoIds { get; set; } = Array.Empty<int>();
     [Parameter] public EventCallback<int> OnPhotoCoverToggle { get; set; }
@@ -108,15 +205,34 @@
     private System.Threading.Timer? _refreshTimer;
     private int? _lastLoadedFolderId;
     private bool _lastEditMode;
+    private bool _lastIsAdmin;
     private ElementReference scrollTrigger;
     private Microsoft.JSInterop.IJSObjectReference? _jsModule;
     private DotNetObjectReference<PhotoGrid>? _objRef;
+
+    private readonly HashSet<int> _selected = new();
+    private bool _busy;
+    private string? _statusMessage;
+    private bool _statusIsError;
+    private bool _metadataDialogOpen;
+    private int? _metadataPhotoId;
+    private int? _focusedPhotoId;
+
+    private bool IncludeHidden => EditMode || IsAdmin;
+
+    private int? MetadataTargetPhotoId =>
+        _selected.Count == 1
+            ? _selected.First()
+            : _focusedPhotoId is int focused && Photos.Any(p => p.Id == focused)
+                ? focused
+                : null;
 
     protected override async Task OnInitializedAsync()
     {
         Logger.LogInformation("PhotoGrid.OnInitializedAsync: FolderId={FolderId}", FolderId);
         _lastLoadedFolderId = FolderId;
         _lastEditMode = EditMode;
+        _lastIsAdmin = IsAdmin;
         // Clear photos list to prevent duplicates from previous state
         Photos = new();
         currentPage = 0;
@@ -141,18 +257,20 @@
     {
         var folderChanged = _lastLoadedFolderId != FolderId;
         var editModeChanged = _lastEditMode != EditMode;
+        var isAdminChanged = _lastIsAdmin != IsAdmin;
 
-        if (!folderChanged && !editModeChanged)
+        if (!folderChanged && !editModeChanged && !isAdminChanged)
         {
             Logger.LogDebug("PhotoGrid.OnParametersSetAsync: FolderId unchanged ({FolderId}), skipping reload", FolderId);
             return;
         }
 
-        Logger.LogInformation("PhotoGrid.OnParametersSetAsync: FolderId changed from {OldFolderId} to {NewFolderId}, EditMode={EditMode}",
-            _lastLoadedFolderId, FolderId, EditMode);
+        Logger.LogInformation("PhotoGrid.OnParametersSetAsync: FolderId changed from {OldFolderId} to {NewFolderId}, EditMode={EditMode}, IsAdmin={IsAdmin}",
+            _lastLoadedFolderId, FolderId, EditMode, IsAdmin);
 
         _lastLoadedFolderId = FolderId;
         _lastEditMode = EditMode;
+        _lastIsAdmin = IsAdmin;
         Photos = new();
         currentPage = 0;
         HasMore = true;
@@ -160,6 +278,9 @@
         scanProgress = null;
         isScanning = false;
         hasLoadedOnce = false; // Reset load state for new folder
+        _selected.Clear();
+        _focusedPhotoId = null;
+        ClearStatus();
         
         // Stop previous timers
         _progressTimer?.Dispose();
@@ -189,12 +310,12 @@
             List<Photo> photos;
             if (UseHomePageCache && currentPage == 0)
             {
-                photos = await HomePageCache.GetFirstPagePhotosAsync(FolderId, PageSize, EditMode, 
-                    () => PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode));
+                photos = await HomePageCache.GetFirstPagePhotosAsync(FolderId, PageSize, IncludeHidden, 
+                    () => PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: IncludeHidden));
             }
             else
             {
-                photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize, includeHidden: EditMode);
+                photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, currentPage * PageSize, PageSize, includeHidden: IncludeHidden);
             }
             
             Logger.LogInformation("PhotoGrid.LoadPhotosAsync: Received {Count} photos from service for FolderId={FolderId}", 
@@ -301,6 +422,9 @@
 
     private void HandlePhotoClick(Photo photo)
     {
+        if (IsAdmin)
+            _focusedPhotoId = photo.Id;
+
         if (EditMode)
         {
             _ = ToggleCover(photo.Id);
@@ -309,6 +433,152 @@
         {
             Navigation.NavigateTo($"/photo/{photo.Id}");
         }
+    }
+
+    private void TogglePhotoSelected(int photoId, object? value)
+    {
+        var selected = value is bool b && b;
+        if (selected)
+        {
+            _selected.Add(photoId);
+            _focusedPhotoId = photoId;
+        }
+        else
+        {
+            _selected.Remove(photoId);
+        }
+        ClearStatus();
+    }
+
+    private void SelectAllPhotos()
+    {
+        foreach (var photo in Photos)
+            _selected.Add(photo.Id);
+        ClearStatus();
+    }
+
+    private void ClearSelection()
+    {
+        _selected.Clear();
+        ClearStatus();
+    }
+
+    private void ClearStatus()
+    {
+        _statusMessage = null;
+        _statusIsError = false;
+    }
+
+    private void SetStatus(string message, bool error = false)
+    {
+        _statusMessage = message;
+        _statusIsError = error;
+    }
+
+    private async Task SetVisibilityAsync(bool isVisible)
+    {
+        if (_busy || _selected.Count == 0)
+            return;
+
+        var ids = _selected.ToList();
+        _busy = true;
+        ClearStatus();
+        try
+        {
+            await PhotoService.SetPhotosVisibilityAsync(ids, isVisible);
+            foreach (var photo in Photos.Where(p => ids.Contains(p.Id)))
+                photo.IsVisible = isVisible;
+            SetStatus(isVisible ? $"Showed {ids.Count} photo(s)." : $"Hid {ids.Count} photo(s).");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "SetPhotosVisibilityAsync failed");
+            SetStatus(ex.Message, error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task BulkTagsAsync(bool attach)
+    {
+        if (_busy || _selected.Count == 0)
+            return;
+
+        string? raw;
+        try
+        {
+            raw = await JSRuntime.InvokeAsync<string?>(
+                "prompt",
+                attach
+                    ? "Tag name(s) to add (comma-separated):"
+                    : "Tag name(s) to remove (comma-separated):");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Tag prompt failed");
+            SetStatus("Could not open tag prompt.", error: true);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(raw))
+            return;
+
+        var tagNames = raw
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (tagNames.Count == 0)
+            return;
+
+        var ids = _selected.ToList();
+        _busy = true;
+        ClearStatus();
+        try
+        {
+            if (attach)
+                await TagService.BulkAttachToPhotosAsync(ids, tagNames);
+            else
+                await TagService.BulkDetachFromPhotosAsync(ids, tagNames);
+
+            SetStatus(attach
+                ? $"Added tag(s) to {ids.Count} photo(s)."
+                : $"Removed tag(s) from {ids.Count} photo(s).");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Bulk photo tag {Action} failed", attach ? "attach" : "detach");
+            SetStatus(ex.Message, error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void OpenMetadataDialog()
+    {
+        var target = MetadataTargetPhotoId;
+        if (target is null)
+            return;
+
+        _metadataPhotoId = target;
+        _metadataDialogOpen = true;
+    }
+
+    private void CloseMetadataDialog()
+    {
+        _metadataDialogOpen = false;
+        _metadataPhotoId = null;
+    }
+
+    private Task HandleMetadataSaved()
+    {
+        SetStatus("Photo metadata saved.");
+        return Task.CompletedTask;
     }
 
     private bool IsCoverSelected(int photoId) =>
@@ -408,7 +678,7 @@
         try
         {
             var previousCount = Photos.Count;
-            List<Photo> photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: EditMode);
+            List<Photo> photos = await PhotoService.GetPhotosByFolderIdAsync(FolderId, 0, PageSize, includeHidden: IncludeHidden);
             
             if (photos != null && photos.Count > previousCount)
             {

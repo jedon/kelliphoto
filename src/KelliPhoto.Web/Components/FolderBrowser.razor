@@ -109,7 +109,17 @@
         </nav>
 
         <div class="folder-list">
-            @if (ChildFolders.Any())
+            @if (IsAdmin)
+            {
+                <h5>Folders</h5>
+                <AlbumAdminPanel Albums="ChildFolders"
+                                 ParentFolderId="CurrentFolder!.Id"
+                                 Thumbnails="FolderThumbnails"
+                                 OnChanged="HandleAdminAlbumsChanged"
+                                 OnEditAlbum="OpenEditDialog"
+                                 OnOpenAlbum="NavigateToFolder" />
+            }
+            else if (ChildFolders.Any())
             {
                 <h5>Folders</h5>
                 <div class="row">
@@ -121,6 +131,18 @@
                     }
                 </div>
             }
+        </div>
+    }
+    else if (IsAdmin && !FolderId.HasValue && string.IsNullOrEmpty(errorMessage) && !isLoading)
+    {
+        <div class="folder-list">
+            <h5>Gallery Folders</h5>
+                <AlbumAdminPanel Albums="RootFolders"
+                             ParentFolderId="GalleryMountRootId"
+                             Thumbnails="FolderThumbnails"
+                             OnChanged="HandleAdminAlbumsChanged"
+                             OnEditAlbum="OpenEditDialog"
+                             OnOpenAlbum="NavigateToFolder" />
         </div>
     }
     else if (RootFolders.Any())
@@ -166,6 +188,8 @@
     private Folder? CurrentFolder { get; set; }
     private List<Folder> Breadcrumbs { get; set; } = new();
     private Dictionary<int, IReadOnlyList<Photo>> FolderThumbnails { get; set; } = new();
+    /// <summary>Gallery mount root id for top-level create/reorder (same parent CreateAlbumAsync(null) remaps to).</summary>
+    private int? GalleryMountRootId { get; set; }
     private bool isLoading = false;
     private string? errorMessage = null;
 
@@ -249,6 +273,8 @@
                     .ToList();
                 Logger.LogInformation("FolderBrowser: After filtering, {Count} folders remain (filtered {FilteredCount})", 
                     RootFolders.Count, beforeFilter - RootFolders.Count);
+
+                GalleryMountRootId = await ResolveGalleryMountRootIdAsync(RootFolders);
                 
                 CurrentFolder = null;
                 ChildFolders = new();
@@ -532,6 +558,37 @@
     {
         await LoadFoldersAsync();
         await OnFoldersChanged.InvokeAsync();
+    }
+
+    private async Task HandleAdminAlbumsChanged()
+    {
+        await LoadFoldersAsync();
+        await OnFoldersChanged.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Resolves the gallery mount root id used as ParentFolderId for top-level AlbumAdminPanel.
+    /// Prefers ParentId from loaded top-level albums; falls back to the single null-parent root.
+    /// </summary>
+    private async Task<int?> ResolveGalleryMountRootIdAsync(List<Folder> topLevelFolders)
+    {
+        var fromChildren = topLevelFolders
+            .Select(f => f.ParentId)
+            .FirstOrDefault(id => id.HasValue);
+        if (fromChildren.HasValue)
+            return fromChildren;
+
+        var roots = await FolderService.GetRootFoldersAsync(includeHidden: true);
+        if (roots.Count == 1)
+            return roots[0].Id;
+
+        var emptyPathMount = roots.FirstOrDefault(f =>
+        {
+            var relative = (f.Path ?? string.Empty).Trim()
+                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar, '/', '\\');
+            return string.IsNullOrEmpty(relative) || relative == ".";
+        });
+        return emptyPathMount?.Id;
     }
 
 }

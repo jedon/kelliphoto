@@ -27,4 +27,12 @@ public interface IFolderService
     Task<IReadOnlyList<Folder>> GetSiblingFoldersAsync(int folderId, bool includeHidden = true);
     Task<List<Folder>> GetAllFoldersAsync();
     Task<List<Folder>> GetBreadcrumbPathAsync(int folderId);
+
+    Task<Folder> CreateAlbumAsync(int? parentFolderId, string name);
+    Task RenameAlbumAsync(int folderId, string newName);
+    Task DeleteAlbumRecursiveAsync(int folderId);
+    Task ReorderSiblingsAsync(int? parentFolderId, IReadOnlyList<int> orderedFolderIds);
+    Task SetFoldersVisibilityAsync(IReadOnlyList<int> folderIds, bool isVisible);
+    Task<(int ChildAlbumCount, int PhotoCount)> GetAlbumSubtreeCountsAsync(int folderId);
+    bool IsProtectedFolder(Folder folder);
 }

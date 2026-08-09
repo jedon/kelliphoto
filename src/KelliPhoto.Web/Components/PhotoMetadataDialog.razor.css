@@ -1,0 +1,179 @@
+.photo-meta-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1050;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.72);
+}
+
+.photo-meta-dialog {
+    width: min(640px, 100%);
+    max-height: min(92vh, 820px);
+    display: flex;
+    flex-direction: column;
+    background: #1a1a1a;
+    border: 1px solid #D4AF37;
+    border-radius: 6px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+    overflow: hidden;
+}
+
+.photo-meta-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.85rem 1rem;
+    border-bottom: 1px solid #333;
+}
+
+.photo-meta-title {
+    margin: 0;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 500;
+}
+
+.photo-meta-close {
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-size: 1.5rem;
+    line-height: 1;
+    padding: 0 0.25rem;
+    cursor: pointer;
+}
+
+.photo-meta-close:hover {
+    color: #fff;
+}
+
+.photo-meta-body {
+    padding: 1rem;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.photo-meta-body .form-label {
+    color: #fff;
+    font-size: 0.85rem;
+}
+
+.photo-meta-body .form-control,
+.photo-meta-body .form-select {
+    background: #111;
+    border-color: #444;
+    color: #eee;
+}
+
+.photo-meta-preview {
+    display: flex;
+    align-items: flex-end;
+    gap: 1rem;
+}
+
+.photo-meta-preview img {
+    width: 120px;
+    height: 90px;
+    object-fit: cover;
+    border: 1px solid #555;
+    border-radius: 3px;
+    background: #111;
+}
+
+.photo-meta-divider {
+    border-color: #333;
+    margin: 1rem 0;
+}
+
+.photo-meta-section-title {
+    color: #fff;
+    margin-bottom: 0.5rem;
+}
+
+.photo-meta-hint {
+    margin-bottom: 0.75rem;
+}
+
+.photo-meta-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    min-height: 1.75rem;
+    align-items: center;
+}
+
+.photo-meta-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #222;
+    color: #eee;
+    font-size: 0.8rem;
+}
+
+.photo-meta-tag-group {
+    color: #aaa;
+    font-size: 0.7rem;
+}
+
+.photo-meta-tag-remove {
+    border: none;
+    background: transparent;
+    color: #aaa;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0;
+    cursor: pointer;
+}
+
+.photo-meta-tag-remove:hover {
+    color: #fff;
+}
+
+.photo-meta-tag-add {
+    display: grid;
+    grid-template-columns: 1fr minmax(7rem, 8.5rem) auto;
+    gap: 0.4rem;
+    align-items: center;
+}
+
+.photo-meta-tag-group-select {
+    min-width: 0;
+}
+
+.photo-meta-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.85rem 1rem;
+    border-top: 1px solid #333;
+}
+
+.photo-meta-footer .btn-outline-secondary {
+    color: #ccc;
+    border-color: #555;
+}
+
+.photo-meta-footer .btn-outline-secondary:hover {
+    color: #fff;
+    border-color: #888;
+    background: #333;
+}
+
+.photo-meta-footer .btn-primary {
+    background: #D4AF37;
+    border-color: #fff;
+    color: #111;
+}
+
+.photo-meta-footer .btn-primary:hover {
+    background: #F4D03F;
+    border-color: #e8e8e8;
+}
