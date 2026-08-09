@@ -1064,6 +1064,16 @@ public class FolderService : IFolderService
             throw new ArgumentNullException(nameof(orderedFolderIds));
 
         await using var context = await _contextFactory.CreateDbContextAsync();
+
+        // Null parent means "siblings under gallery mount root" (same remap as CreateAlbumAsync).
+        if (parentFolderId is null)
+        {
+            var mount = await FindGalleryMountRootAsync(context)
+                ?? throw new InvalidOperationException(
+                    "Cannot reorder albums: gallery mount root folder was not found in the catalog.");
+            parentFolderId = mount.Id;
+        }
+
         var siblings = await context.Folders
             .Where(f => f.ParentId == parentFolderId)
             .ToListAsync();

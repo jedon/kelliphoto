@@ -37,6 +37,24 @@
         await LoadRootsAsync();
     }
 
+    /// <summary>
+    /// Reloads root nodes and refreshes any currently expanded children so names/order/visibility stay current.
+    /// </summary>
+    public async Task ReloadAsync()
+    {
+        var expandedIds = new HashSet<int>();
+        CollectExpandedIds(rootNodes, expandedIds);
+
+        await LoadRootsAsync();
+
+        if (expandedIds.Count > 0)
+        {
+            await RestoreExpandedAsync(rootNodes, expandedIds);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
     private async Task LoadRootsAsync()
     {
         isLoadingRoots = true;
@@ -68,6 +86,48 @@
     {
         var hasChildren = await FolderService.FolderHasChildrenAsync(folder.Id, IncludeHidden);
         return new TreeNode(folder, hasChildren);
+    }
+
+    private static void CollectExpandedIds(IEnumerable<TreeNode> nodes, HashSet<int> expandedIds)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.IsExpanded)
+            {
+                expandedIds.Add(node.Folder.Id);
+                CollectExpandedIds(node.Children, expandedIds);
+            }
+        }
+    }
+
+    private async Task RestoreExpandedAsync(IEnumerable<TreeNode> nodes, HashSet<int> expandedIds)
+    {
+        foreach (var node in nodes)
+        {
+            if (!expandedIds.Contains(node.Folder.Id) || !node.HasChildren)
+            {
+                continue;
+            }
+
+            node.IsExpanded = true;
+            try
+            {
+                var children = await FolderService.GetChildFoldersAsync(node.Folder.Id, IncludeHidden);
+                node.Children.Clear();
+                foreach (var child in children.OrderBy(c => c.SortOrder).ThenBy(c => c.Name))
+                {
+                    node.Children.Add(await CreateNodeAsync(child));
+                }
+                node.ChildrenLoaded = true;
+                await RestoreExpandedAsync(node.Children, expandedIds);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to reload children for folder {FolderId} during tree refresh", node.Folder.Id);
+                node.IsExpanded = false;
+                node.ChildrenLoaded = false;
+            }
+        }
     }
 
     private RenderFragment RenderTreeNode(TreeNode node) => builder =>

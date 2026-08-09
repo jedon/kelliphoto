@@ -41,7 +41,10 @@
                 <div class="col-lg-4 col-md-5">
                     <h3 class="h5">Folders</h3>
                     <p class="text-muted small">Expand nodes to load children. Select a folder to edit settings and photos.</p>
-                    <AdminFolderTree SelectedFolderId="selectedFolderId" SelectedFolderIdChanged="OnFolderSelectedAsync" IncludeHidden="true" />
+                    <AdminFolderTree @ref="_folderTree"
+                                     SelectedFolderId="selectedFolderId"
+                                     SelectedFolderIdChanged="OnFolderSelectedAsync"
+                                     IncludeHidden="true" />
                 </div>
                 <div class="col-lg-8 col-md-7">
                     @if (selectedFolder == null)
@@ -282,6 +285,7 @@
     private IBrowserFile[]? selectedFiles;
     private bool _editDialogOpen;
     private int? _editingFolderId;
+    private AdminFolderTree? _folderTree;
 
     private void SetActiveTab(string tab) => activeTab = tab;
 
@@ -319,7 +323,7 @@
             selectedCoverPhotoIds = coverPhotos.Select(p => p.Id).ToList();
             hadSavedCovers = coverPhotos.Count > 0;
             coversCleared = false;
-            await ReloadChildAlbumsAsync();
+            await LoadChildAlbumsOnlyAsync();
             await LoadCoverPickerPhotosAsync();
             await LoadPhotosPageAsync(reset: true);
         }
@@ -330,6 +334,13 @@
     }
 
     private async Task ReloadChildAlbumsAsync()
+    {
+        await LoadChildAlbumsOnlyAsync();
+        if (_folderTree is not null)
+            await _folderTree.ReloadAsync();
+    }
+
+    private async Task LoadChildAlbumsOnlyAsync()
     {
         if (selectedFolderId <= 0)
         {
@@ -378,6 +389,9 @@
 
     private async Task HandleFolderEditSaved()
     {
+        if (_folderTree is not null)
+            await _folderTree.ReloadAsync();
+
         if (selectedFolderId > 0)
         {
             await OnFolderSelectedAsync(selectedFolderId);

@@ -181,6 +181,24 @@ public class FolderAlbumCrudTests : IDisposable
     }
 
     [Fact]
+    public async Task ReorderSiblingsAsync_NullParent_ResolvesToMountRoot()
+    {
+        var mount = await SeedMountRootAsync();
+        var a = await AddFolderAsync("A", "A", mount.Id, sortOrder: 0);
+        var b = await AddFolderAsync("B", "B", mount.Id, sortOrder: 1);
+        var c = await AddFolderAsync("C", "C", mount.Id, sortOrder: 2);
+
+        await _folderService.ReorderSiblingsAsync(null, new[] { c.Id, a.Id, b.Id });
+
+        var ordered = await _context.Folders.AsNoTracking()
+            .Where(f => f.ParentId == mount.Id)
+            .OrderBy(f => f.SortOrder)
+            .Select(f => f.Id)
+            .ToListAsync();
+        Assert.Equal(new[] { c.Id, a.Id, b.Id }, ordered);
+    }
+
+    [Fact]
     public async Task ReorderSiblingsAsync_RejectsDuplicateIds()
     {
         var mount = await SeedMountRootAsync();

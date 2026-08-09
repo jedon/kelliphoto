@@ -463,6 +463,7 @@
         _isSaving = true;
         _errorMessage = null;
         _coverMessage = null;
+        var renameSucceeded = false;
 
         try
         {
@@ -476,6 +477,7 @@
             if (nameChanged)
             {
                 await FolderService.RenameAlbumAsync(FolderId.Value, trimmedName);
+                renameSucceeded = true;
                 // Reload so subsequent settings update uses disk-sanitized name.
                 var renamed = await FolderService.GetFolderByIdAsync(FolderId.Value)
                     ?? throw new InvalidOperationException("Folder not found after rename.");
@@ -513,6 +515,18 @@
         {
             Logger.LogError(ex, "Error saving folder {FolderId}", FolderId);
             _errorMessage = ex.Message;
+            // Rename already persisted — notify parents so tree/browser names refresh while keeping the error visible.
+            if (renameSucceeded && OnSaved.HasDelegate)
+            {
+                try
+                {
+                    await OnSaved.InvokeAsync();
+                }
+                catch (Exception notifyEx)
+                {
+                    Logger.LogWarning(notifyEx, "OnSaved after partial rename failure for folder {FolderId}", FolderId);
+                }
+            }
         }
         finally
         {
