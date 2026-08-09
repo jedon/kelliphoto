@@ -202,3 +202,8 @@ fix-thumbnail-migration.csproj
 apply-missing-migration.sql
 complete-migration.sql
 src/KelliPhoto.Web/migration.sql
+
+# Git worktrees
+.worktrees/
+worktrees/
+
