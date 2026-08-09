@@ -1,0 +1,273 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JSRuntime
+@inject ILogger<AlbumAdminGrid> Logger
+
+<div class="album-admin-grid">
+    @if (Albums == null || Albums.Count == 0)
+    {
+        <p class="album-admin-empty">No albums in this folder.</p>
+    }
+    else
+    {
+        <div class="row" @ref="_gridContainer">
+            @for (var i = 0; i < Albums.Count; i++)
+            {
+                var album = Albums[i];
+                var position = i + 1;
+                var selected = SelectedIds.Contains(album.Id);
+                var thumbnails = Thumbnails?.GetValueOrDefault(album.Id) ?? Array.Empty<Photo>();
+
+                <div class="col-md-3 col-sm-4 col-6 mb-3"
+                     data-album-id="@album.Id"
+                     draggable="true">
+                    <div class="card folder-card album-admin-card @(!album.IsVisible ? "folder-card-hidden" : "") @(selected ? "album-admin-card-selected" : "")">
+                        <div class="album-admin-chrome" @onclick:stopPropagation="true">
+                            <label class="album-admin-check" title="Select @album.Name">
+                                <input type="checkbox"
+                                       checked="@selected"
+                                       @onchange="e => ToggleSelection(album.Id, e.Value)" />
+                                <span class="visually-hidden">Select @album.Name</span>
+                            </label>
+
+                            <button type="button"
+                                    class="album-admin-drag-handle"
+                                    data-album-dnd-handle
+                                    title="Drag to reorder"
+                                    aria-label="Drag to reorder @album.Name"
+                                    tabindex="-1">
+                                <i class="bi bi-grip-vertical"></i>
+                            </button>
+
+                            <input type="number"
+                                   class="album-admin-position"
+                                   min="1"
+                                   max="@Albums.Count"
+                                   value="@position"
+                                   title="Position (1-based)"
+                                   aria-label="Position of @album.Name"
+                                   @onchange="e => OnPositionChangedAsync(album.Id, e.Value)" />
+                        </div>
+
+                        <button type="button"
+                                class="folder-card-edit-btn"
+                                title="Edit album"
+                                aria-label="Edit @album.Name"
+                                @onclick:stopPropagation="true"
+                                @onclick="() => OnEditAlbum.InvokeAsync(album.Id)">
+                            <i class="bi bi-pencil"></i>
+                        </button>
+
+                        @if (!album.IsVisible)
+                        {
+                            <span class="folder-hidden-badge">Hidden</span>
+                        }
+
+                        <div class="album-admin-card-body" @onclick="() => OpenAlbumAsync(album.Id)" style="cursor: pointer;">
+                            @if (thumbnails.Count >= 2)
+                            {
+                                <div class="folder-thumbnail-grid">
+                                    @for (var t = 0; t < 4; t++)
+                                    {
+                                        <div class="folder-thumbnail-grid-cell">
+                                            @if (t < thumbnails.Count)
+                                            {
+                                                <img src="/api/images/thumbnail/@thumbnails[t].Id?size=150"
+                                                     alt="@album.Name"
+                                                     loading="lazy"
+                                                     draggable="false"
+                                                     oncontextmenu="return false;" />
+                                            }
+                                        </div>
+                                    }
+                                </div>
+                            }
+                            else if (thumbnails.Count == 1)
+                            {
+                                <img src="/api/images/thumbnail/@thumbnails[0].Id?size=300"
+                                     alt="@album.Name"
+                                     class="folder-thumbnail"
+                                     loading="lazy"
+                                     draggable="false"
+                                     oncontextmenu="return false;"
+                                     onerror="this.onerror=null; this.style.display='none'; this.nextElementSibling.style.display='flex';" />
+                                <div class="folder-icon-fallback" style="display: none;">
+                                    <i class="bi bi-folder"></i>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="folder-icon-fallback">
+                                    <i class="bi bi-folder"></i>
+                                </div>
+                            }
+                            <div class="card-body text-center">
+                                <p class="card-text">@album.Name</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<Folder> Albums { get; set; } = Array.Empty<Folder>();
+    [Parameter] public int? ParentFolderId { get; set; }
+    [Parameter] public IReadOnlyDictionary<int, IReadOnlyList<Photo>>? Thumbnails { get; set; }
+    [Parameter] public HashSet<int> SelectedIds { get; set; } = new();
+    [Parameter] public EventCallback<HashSet<int>> SelectedIdsChanged { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback<int> OnEditAlbum { get; set; }
+    [Parameter] public EventCallback<int> OnOpenAlbum { get; set; }
+    [Parameter] public EventCallback<IReadOnlyList<int>> OnReorder { get; set; }
+
+    private ElementReference _gridContainer;
+    private IJSObjectReference? _jsModule;
+    private DotNetObjectReference<AlbumAdminGrid>? _dotNetRef;
+    private string _albumsFingerprint = string.Empty;
+    private bool _dndReady;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Albums.Count == 0)
+            return;
+
+        var fingerprint = string.Join(",", Albums.Select(a => a.Id));
+        var needsInit = firstRender || !_dndReady || fingerprint != _albumsFingerprint;
+        _albumsFingerprint = fingerprint;
+
+        if (!needsInit)
+            return;
+
+        await TryInitializeDnDAsync();
+    }
+
+    private async Task TryInitializeDnDAsync()
+    {
+        try
+        {
+            if (_jsModule == null)
+                _jsModule = await JSRuntime.InvokeAsync<IJSObjectReference>("import", "./js/albumAdminDnD.js");
+
+            _dotNetRef?.Dispose();
+            _dotNetRef = DotNetObjectReference.Create(this);
+
+            await _jsModule.InvokeVoidAsync("initialize", _gridContainer, _dotNetRef);
+            _dndReady = true;
+        }
+        catch (InvalidOperationException ex) when (
+            ex.Message.Contains("JavaScript interop", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("statically rendered", StringComparison.OrdinalIgnoreCase)
+            || ex.Message.Contains("prerender", StringComparison.OrdinalIgnoreCase))
+        {
+            Logger.LogDebug(ex, "Album admin DnD skipped until interactive render");
+        }
+        catch (JSException ex)
+        {
+            // ElementReference may not be ready on first attempt
+            Logger.LogDebug(ex, "Album admin DnD init deferred");
+            _dndReady = false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error initializing album admin drag-drop");
+            _dndReady = false;
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnDragReorderAsync(int[] orderedIds)
+    {
+        if (orderedIds == null || orderedIds.Length == 0)
+            return;
+
+        if (OnReorder.HasDelegate)
+            await OnReorder.InvokeAsync(orderedIds);
+    }
+
+    private async Task ToggleSelection(int albumId, object? value)
+    {
+        var next = new HashSet<int>(SelectedIds);
+        if (value is bool isChecked && isChecked)
+            next.Add(albumId);
+        else
+            next.Remove(albumId);
+
+        SelectedIds = next;
+        if (SelectedIdsChanged.HasDelegate)
+            await SelectedIdsChanged.InvokeAsync(next);
+    }
+
+    private async Task OpenAlbumAsync(int albumId)
+    {
+        if (OnOpenAlbum.HasDelegate)
+            await OnOpenAlbum.InvokeAsync(albumId);
+    }
+
+    private async Task OnPositionChangedAsync(int albumId, object? value)
+    {
+        if (!TryParsePosition(value, out var position))
+            return;
+
+        var ordered = Albums.Select(a => a.Id).ToList();
+        var fromIndex = ordered.IndexOf(albumId);
+        if (fromIndex < 0)
+            return;
+
+        var toIndex = Math.Clamp(position - 1, 0, ordered.Count - 1);
+        if (fromIndex == toIndex)
+            return;
+
+        ordered.RemoveAt(fromIndex);
+        ordered.Insert(toIndex, albumId);
+
+        if (OnReorder.HasDelegate)
+            await OnReorder.InvokeAsync(ordered);
+    }
+
+    private static bool TryParsePosition(object? value, out int position)
+    {
+        position = 0;
+        switch (value)
+        {
+            case int i:
+                position = i;
+                return true;
+            case string s when int.TryParse(s, out var parsed):
+                position = parsed;
+                return true;
+            case ChangeEventArgs { Value: int i2 }:
+                position = i2;
+                return true;
+            case ChangeEventArgs { Value: string s2 } when int.TryParse(s2, out var parsed2):
+                position = parsed2;
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_jsModule != null)
+        {
+            try
+            {
+                await _jsModule.InvokeVoidAsync("dispose");
+                await _jsModule.DisposeAsync();
+            }
+            catch (JSDisconnectedException) { }
+            catch (InvalidOperationException) { }
+            catch (Exception ex)
+            {
+                Logger.LogDebug(ex, "Error disposing album admin DnD module");
+            }
+        }
+
+        _dotNetRef?.Dispose();
+        _jsModule = null;
+        _dotNetRef = null;
+        _dndReady = false;
+    }
+}

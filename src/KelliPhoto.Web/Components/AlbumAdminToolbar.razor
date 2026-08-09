@@ -1,0 +1,98 @@
+@* Presentational bulk bar; selection and actions owned by AlbumAdminPanel *@
+
+<div class="album-admin-toolbar gallery-edit-toolbar">
+    <button type="button"
+            class="btn btn-sm btn-outline-warning"
+            disabled="@Busy"
+            @onclick="OnAddAlbum">
+        <i class="bi bi-folder-plus"></i> Add album
+    </button>
+
+    <div class="album-admin-toolbar-sep" aria-hidden="true"></div>
+
+    <button type="button"
+            class="btn btn-sm btn-outline-light"
+            disabled="@Busy || AlbumCount == 0"
+            @onclick="OnSelectAll">
+        Select all
+    </button>
+    <button type="button"
+            class="btn btn-sm btn-outline-light"
+            disabled="@Busy || SelectedCount == 0"
+            @onclick="OnSelectNone">
+        None
+    </button>
+
+    @if (SelectedCount > 0)
+    {
+        <span class="album-admin-selection-count">@SelectedCount selected</span>
+
+        <div class="album-admin-toolbar-sep" aria-hidden="true"></div>
+
+        <button type="button"
+                class="btn btn-sm btn-outline-light"
+                disabled="@Busy"
+                title="Show selected albums"
+                @onclick="OnShow">
+            <i class="bi bi-eye"></i> Show
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-outline-light"
+                disabled="@Busy"
+                title="Hide selected albums"
+                @onclick="OnHide">
+            <i class="bi bi-eye-slash"></i> Hide
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-outline-light"
+                disabled="@Busy"
+                title="Add tags to selected"
+                @onclick="OnAddTags">
+            <i class="bi bi-tag"></i> Add tags
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-outline-light"
+                disabled="@Busy"
+                title="Remove tags from selected"
+                @onclick="OnRemoveTags">
+            <i class="bi bi-tag-fill"></i> Remove tags
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-outline-danger"
+                disabled="@Busy"
+                title="Delete selected albums permanently"
+                @onclick="OnDelete">
+            <i class="bi bi-trash"></i> Delete permanently
+        </button>
+        <button type="button"
+                class="btn btn-sm btn-link album-admin-clear-link"
+                disabled="@Busy"
+                @onclick="OnSelectNone">
+            Clear selection
+        </button>
+    }
+
+    @if (!string.IsNullOrEmpty(StatusMessage))
+    {
+        <span class="album-admin-status @StatusCssClass">@StatusMessage</span>
+    }
+</div>
+
+@code {
+    [Parameter] public int AlbumCount { get; set; }
+    [Parameter] public int SelectedCount { get; set; }
+    [Parameter] public bool Busy { get; set; }
+    [Parameter] public string? StatusMessage { get; set; }
+    [Parameter] public bool StatusIsError { get; set; }
+
+    [Parameter] public EventCallback OnAddAlbum { get; set; }
+    [Parameter] public EventCallback OnSelectAll { get; set; }
+    [Parameter] public EventCallback OnSelectNone { get; set; }
+    [Parameter] public EventCallback OnShow { get; set; }
+    [Parameter] public EventCallback OnHide { get; set; }
+    [Parameter] public EventCallback OnAddTags { get; set; }
+    [Parameter] public EventCallback OnRemoveTags { get; set; }
+    [Parameter] public EventCallback OnDelete { get; set; }
+
+    private string StatusCssClass => StatusIsError ? "is-error" : "is-info";
+}

@@ -1,0 +1,349 @@
+@inject IFolderService FolderService
+@inject ITagService TagService
+@inject IJSRuntime JSRuntime
+@inject ILogger<AlbumAdminPanel> Logger
+
+<div class="album-admin-panel">
+    <AlbumAdminToolbar AlbumCount="@(Albums?.Count ?? 0)"
+                       SelectedCount="_selected.Count"
+                       Busy="_busy"
+                       StatusMessage="_statusMessage"
+                       StatusIsError="_statusIsError"
+                       OnAddAlbum="AddAlbumAsync"
+                       OnSelectAll="SelectAll"
+                       OnSelectNone="ClearSelection"
+                       OnShow="() => SetVisibilityAsync(true)"
+                       OnHide="() => SetVisibilityAsync(false)"
+                       OnAddTags="() => BulkTagsAsync(attach: true)"
+                       OnRemoveTags="() => BulkTagsAsync(attach: false)"
+                       OnDelete="DeleteSelectedAsync" />
+
+    <AlbumAdminGrid Albums="Albums"
+                    ParentFolderId="ParentFolderId"
+                    Thumbnails="Thumbnails"
+                    SelectedIds="_selected"
+                    SelectedIdsChanged="OnSelectedChanged"
+                    OnChanged="OnChanged"
+                    OnEditAlbum="OnEditAlbum"
+                    OnOpenAlbum="OnOpenAlbum"
+                    OnReorder="ReorderAsync" />
+</div>
+
+@code {
+    [Parameter] public IReadOnlyList<Folder> Albums { get; set; } = Array.Empty<Folder>();
+    [Parameter] public int? ParentFolderId { get; set; }
+    [Parameter] public IReadOnlyDictionary<int, IReadOnlyList<Photo>>? Thumbnails { get; set; }
+    [Parameter] public EventCallback OnChanged { get; set; }
+    [Parameter] public EventCallback<int> OnEditAlbum { get; set; }
+    [Parameter] public EventCallback<int> OnOpenAlbum { get; set; }
+
+    private HashSet<int> _selected = new();
+    private bool _busy;
+    private string? _statusMessage;
+    private bool _statusIsError;
+
+    private Task OnSelectedChanged(HashSet<int> next)
+    {
+        _selected = next;
+        return Task.CompletedTask;
+    }
+
+    private void SelectAll()
+    {
+        _selected = Albums.Select(a => a.Id).ToHashSet();
+        ClearStatus();
+    }
+
+    private void ClearSelection()
+    {
+        _selected = new HashSet<int>();
+        ClearStatus();
+    }
+
+    private async Task AddAlbumAsync()
+    {
+        if (_busy) return;
+
+        string? name;
+        try
+        {
+            name = await JSRuntime.InvokeAsync<string?>("prompt", "New album name:");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Add album prompt failed");
+            SetStatus("Could not open name prompt.", error: true);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(name))
+            return;
+
+        _busy = true;
+        ClearStatus();
+        try
+        {
+            await FolderService.CreateAlbumAsync(ParentFolderId, name.Trim());
+            await NotifyChangedAsync();
+            SetStatus($"Created album “{name.Trim()}”.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "CreateAlbumAsync failed for parent {ParentId}", ParentFolderId);
+            SetStatus(ex.Message, error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ReorderAsync(IReadOnlyList<int> orderedIds)
+    {
+        if (_busy || orderedIds.Count == 0)
+            return;
+
+        // Ignore no-op (same order as current Albums list)
+        if (Albums.Count == orderedIds.Count
+            && Albums.Select(a => a.Id).SequenceEqual(orderedIds))
+            return;
+
+        _busy = true;
+        ClearStatus();
+        try
+        {
+            await FolderService.ReorderSiblingsAsync(ParentFolderId, orderedIds);
+            await NotifyChangedAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "ReorderSiblingsAsync failed for parent {ParentId}", ParentFolderId);
+            SetStatus(ex.Message, error: true);
+            await NotifyChangedAsync(); // reload to restore UI order
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task SetVisibilityAsync(bool isVisible)
+    {
+        if (_busy || _selected.Count == 0)
+            return;
+
+        var ids = _selected.ToList();
+        _busy = true;
+        ClearStatus();
+        try
+        {
+            await FolderService.SetFoldersVisibilityAsync(ids, isVisible);
+            await NotifyChangedAsync();
+            SetStatus(isVisible ? $"Showed {ids.Count} album(s)." : $"Hid {ids.Count} album(s).");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "SetFoldersVisibilityAsync failed");
+            SetStatus(ex.Message, error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task BulkTagsAsync(bool attach)
+    {
+        if (_busy || _selected.Count == 0)
+            return;
+
+        string? raw;
+        try
+        {
+            raw = await JSRuntime.InvokeAsync<string?>(
+                "prompt",
+                attach
+                    ? "Tag name(s) to add (comma-separated):"
+                    : "Tag name(s) to remove (comma-separated):");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Tag prompt failed");
+            SetStatus("Could not open tag prompt.", error: true);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(raw))
+            return;
+
+        var tagNames = raw
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (tagNames.Count == 0)
+            return;
+
+        var ids = _selected.ToList();
+        _busy = true;
+        ClearStatus();
+        try
+        {
+            if (attach)
+                await TagService.BulkAttachToFoldersAsync(ids, tagNames);
+            else
+                await TagService.BulkDetachFromFoldersAsync(ids, tagNames);
+
+            await NotifyChangedAsync();
+            SetStatus(attach
+                ? $"Added tag(s) to {ids.Count} album(s)."
+                : $"Removed tag(s) from {ids.Count} album(s).");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Bulk tag {Action} failed", attach ? "attach" : "detach");
+            SetStatus(ex.Message, error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task DeleteSelectedAsync()
+    {
+        if (_busy || _selected.Count == 0)
+            return;
+
+        var ids = _selected.ToList();
+        var albums = Albums.Where(a => ids.Contains(a.Id)).ToList();
+
+        var protectedAlbums = albums.Where(FolderService.IsProtectedFolder).ToList();
+        if (protectedAlbums.Count > 0)
+        {
+            SetStatus(
+                $"Cannot delete protected album(s): {string.Join(", ", protectedAlbums.Select(a => a.Name))}.",
+                error: true);
+            return;
+        }
+
+        int childAlbums = 0;
+        int photos = 0;
+        try
+        {
+            foreach (var id in ids)
+            {
+                var counts = await FolderService.GetAlbumSubtreeCountsAsync(id);
+                childAlbums += counts.ChildAlbumCount;
+                photos += counts.PhotoCount;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "GetAlbumSubtreeCountsAsync failed during delete confirm");
+            SetStatus("Could not load delete impact counts.", error: true);
+            return;
+        }
+
+        var message =
+            $"Delete permanently {ids.Count} album(s)?\n\n" +
+            $"This will also remove {childAlbums} nested album(s) and {photos} photo(s).\n\n" +
+            "This cannot be undone. Type confirmation will follow.";
+
+        bool confirmed;
+        try
+        {
+            confirmed = await JSRuntime.InvokeAsync<bool>("confirm", message);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Delete confirm failed");
+            SetStatus("Could not open delete confirmation.", error: true);
+            return;
+        }
+
+        if (!confirmed)
+            return;
+
+        // Strong second confirm with explicit phrase
+        string? typed;
+        try
+        {
+            typed = await JSRuntime.InvokeAsync<string?>(
+                "prompt",
+                "Type DELETE PERMANENTLY to confirm:");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Delete strong-confirm prompt failed");
+            return;
+        }
+
+        if (!string.Equals(typed?.Trim(), "DELETE PERMANENTLY", StringComparison.Ordinal))
+        {
+            SetStatus("Delete cancelled — confirmation text did not match.", error: true);
+            return;
+        }
+
+        _busy = true;
+        ClearStatus();
+        var deleted = 0;
+        try
+        {
+            foreach (var id in ids)
+            {
+                await FolderService.DeleteAlbumRecursiveAsync(id);
+                deleted++;
+            }
+
+            _selected = new HashSet<int>();
+            await NotifyChangedAsync();
+            SetStatus($"Deleted permanently {deleted} album(s).");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "DeleteAlbumRecursiveAsync failed after {Deleted} of {Total}", deleted, ids.Count);
+            _selected = new HashSet<int>();
+            await NotifyChangedAsync();
+            SetStatus($"Deleted {deleted} of {ids.Count}: {ex.Message}", error: true);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task NotifyChangedAsync()
+    {
+        if (OnChanged.HasDelegate)
+            await OnChanged.InvokeAsync();
+    }
+
+    private void ClearStatus()
+    {
+        _statusMessage = null;
+        _statusIsError = false;
+    }
+
+    private void SetStatus(string message, bool error = false)
+    {
+        _statusMessage = message;
+        _statusIsError = error;
+    }
+
+    protected override void OnParametersSet()
+    {
+        // Drop selection for albums no longer in the list
+        if (_selected.Count == 0 || Albums.Count == 0)
+        {
+            if (Albums.Count == 0 && _selected.Count > 0)
+                _selected = new HashSet<int>();
+            return;
+        }
+
+        var valid = Albums.Select(a => a.Id).ToHashSet();
+        if (_selected.Any(id => !valid.Contains(id)))
+            _selected = _selected.Where(valid.Contains).ToHashSet();
+    }
+}
